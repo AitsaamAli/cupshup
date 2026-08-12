@@ -18,6 +18,10 @@ Run with `npm test` (single run) or `npm run test:watch` (Vitest watch mode).
   `settleOrder()`'s RPC call shape, and `loadPaymentMethodTaxRates()`'s
   join logic. The live rounding-per-split behaviour and closed-day/
   cashier-void blocks need a real Postgres — see `docs/payment-and-settlement.md` §6.
+- `purchases.test.ts` — the weighted-average-cost worked example from
+  Part 12 (10kg @ Rs 800 in stock, buy 10kg @ Rs 900 → new average
+  exactly Rs 850), plus `recordPurchaseGrn()`/`recordPurchaseReturn()`/
+  `upsertSupplier()`'s RPC call shapes.
 
 Money math (`lib/money.ts`), business-date logic (`lib/business-date.ts`),
 and — once built — the order/payment RPC functions are the

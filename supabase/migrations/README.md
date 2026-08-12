@@ -4,7 +4,7 @@ Every database change lives here as a numbered SQL file, committed to git.
 **No table is ever created by hand in the Supabase dashboard** — that's how
 staging and production silently drift apart.
 
-> ✅ **Live-verified 2026-08-12.** All 15 files below have actually been
+> ✅ **Live-verified 2026-08-12.** All 19 files below have actually been
 > pushed to and applied against the real linked project (via
 > `supabase db push --db-url ...`), not just reviewed on paper. 29/29
 > tables have RLS enabled, all core functions exist, the seeded data
@@ -54,6 +54,18 @@ staging and production silently drift apart.
   on `ingredient_stock` — see "A real bug found in Part 11" below.
 - `0014_unit_conversions.sql` — **Part 11.** `unit_conversions` table —
   UI convenience only, not load-bearing (see `docs/inventory-and-recipes.md`).
+- `0015_purchases_schema.sql` — **Part 12.** `purchases`, `purchase_lines`,
+  `purchase_returns` tables + RLS; `suppliers.active` flag — original to
+  this project, no reference file.
+- `0016_purchases_functions.sql` — **Part 12.** `upsert_supplier()`,
+  `set_supplier_active()`, `record_purchase_grn()` (multi-line goods
+  receipt, same weighted-average formula as Part 11's `record_purchase()`),
+  `record_purchase_return()`.
+- `0017_supplier_payables_view.sql` — **Part 12.** `supplier_payables` —
+  `security_invoker = true` from the start this time (see the RLS-bypass
+  finding in Part 11).
+- `0018_purchase_invoice_storage.sql` — **Part 12.** `purchase-invoices`
+  Storage bucket — private (unlike `menu-images`), owner/manager only.
 
 `0001`, `0005`, and `0006` were copied from the project's pre-written
 reference SQL at the repo root, per each part's own "reference SQL ready"

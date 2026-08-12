@@ -15,4 +15,7 @@ Everything here calls the RPCs in
 logging, which is a direct RLS-gated insert (Part 04's `log_wastage`
 policy already covers it — see `docs/inventory-and-recipes.md`).
 
-Deliveries are extended further in **Part 12 — Purchases & Suppliers**.
+Deliveries are extended further in **Part 12 — Purchases & Suppliers**
+(`/manage/purchases`, `/manage/suppliers`) — a full GRN with multiple
+lines, invoice tracking, and payment status, on top of this screen's
+quick single-ingredient "Record purchase" action.
