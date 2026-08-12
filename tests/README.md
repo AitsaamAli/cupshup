@@ -94,6 +94,28 @@ bug in `place_order()`'s idempotency check
 mock could have caught, since it only manifests against a real
 Postgres row's actual NULL columns.
 
+- `middleware.test.ts` — Case D of the 2026-08-13 live audit
+  (`docs/security-audit-2026-08-13.md`): the middleware's route matcher,
+  tested as a real anchored `RegExp` against real pathnames, confirming
+  `api/*` (and `sw.js`/`manifest.json`) stay excluded while every real
+  protected page still requires a session. This exact regex was silently
+  redirecting `/api/auth/pin` to `/login` before the fix, breaking every
+  PIN login.
+- `auth-otp.test.ts` — Case E of the same audit: `buildVerifyOtpArgs()`
+  (`lib/auth-otp.ts`) never includes an `email` key alongside
+  `token_hash` — passing both made this project's GoTrue version reject
+  the login exchange outright.
+
+Three more findings from that same audit — a critical cross-outlet
+write bypass, a `place_order()` concurrency race, and a first-login
+provisioning lockout — need either true concurrency or a second real
+Auth identity, neither expressible in a mocked-client Vitest test; they
+live as permanent, re-runnable scripts in `scripts/live-audit/` instead
+(plus a pgTAP version of the cross-outlet case,
+`supabase/tests/database/cross_outlet_isolation.sql`, for the parts of
+it a single session CAN express). See `docs/security-audit-2026-08-13.md`
+for the full incident record.
+
 Money math (`lib/money.ts`), business-date logic (`lib/business-date.ts`),
 and — once built — the order/payment RPC functions are the
 highest-priority coverage in this project: they're where a silent bug

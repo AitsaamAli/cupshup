@@ -4,20 +4,24 @@ Every database change lives here as a numbered SQL file, committed to git.
 **No table is ever created by hand in the Supabase dashboard** — that's how
 staging and production silently drift apart.
 
-> ✅ **Live-verified 2026-08-12.** All 33 files below have actually been
-> pushed to and applied against the real linked project (via
-> `supabase db push --db-url ...`), not just reviewed on paper. 29/29
-> tables have RLS enabled, all core functions exist, the seeded data
-> counts match expectations, `business_date_of()` / `tax_rate_bp()` were
-> queried live and returned the correct values, the expense
-> amortization view was tested against a real 31-day row (which caught
-> and fixed a genuine 9-paisa rounding bug), all 21 real menu categories
-> were confirmed backfilled to a `station` with none left null, every
-> Part 18 owner-only view was confirmed to return zero rows outside an
-> authenticated session, and `record_invoice_print()` was confirmed to
-> return `integer` (not `void`) after Part 19's redefinition — see
-> "Live verification" below, `docs/expenses.md` §3,
-> `docs/kitchen-display.md`, `docs/reports-and-pl.md`, and
+> ✅ **Live-verified, most recently 2026-08-13.** All 35 files below
+> have actually been pushed to and applied against the real linked
+> project (via `supabase db push --db-url ...`), not just reviewed on
+> paper. 29/29 tables have RLS enabled, all core functions exist, the
+> seeded data counts match expectations, `business_date_of()` /
+> `tax_rate_bp()` were queried live and returned the correct values, the
+> expense amortization view was tested against a real 31-day row (which
+> caught and fixed a genuine 9-paisa rounding bug), all 21 real menu
+> categories were confirmed backfilled to a `station` with none left
+> null, every Part 18 owner-only view was confirmed to return zero rows
+> outside an authenticated session, `record_invoice_print()` was
+> confirmed to return `integer` (not `void`) after Part 19's
+> redefinition, and a live adversarial audit on 2026-08-13 found and
+> fixed 5 real bugs — including a CRITICAL cross-outlet write bypass —
+> by actually attacking the running application (not just reviewing its
+> source) — see "Live verification" below, `docs/expenses.md` §3,
+> `docs/kitchen-display.md`, `docs/reports-and-pl.md`,
+> `docs/security-audit-2026-08-13.md`, and
 > `docs/printing-and-pra-invoice.md` for the details.
 
 - `0001_schema.sql` — **Part 03.** Core schema: 29 tables, 10 enums, and the
@@ -161,6 +165,33 @@ staging and production silently drift apart.
   comment and `docs/testing-strategy.md` §3. Also applies the same fix
   to `log_staff_logout()` (0002_auth_functions.sql), the only other
   place the same pattern appeared.
+- `0033_pgcrypto_search_path_bugfix.sql` — live-audit finding, 2026-08-13.
+  `verify_staff_pin()`/`set_staff_pin()` call `crypt()`/`gen_salt()`, but
+  `pgcrypto` lives in Supabase's own `extensions` schema on this
+  project (confirmed live), not `public` — every `SECURITY DEFINER`
+  function here restricts `search_path` to `public`, so those calls
+  were simply unreachable. Every PIN login was broken until this fix.
+  Full incident record: `docs/security-audit-2026-08-13.md`.
+- `0034_place_order_race_fix.sql` — live-audit finding: firing 20
+  genuinely concurrent `place_order()` calls with the same idempotency
+  key showed ~1 in 20 callers getting a raw `duplicate key` constraint
+  error instead of the graceful `duplicate: true` response (never an
+  actual duplicate order — the constraint always held). Fixed by
+  catching `unique_violation` around the insert. Regression:
+  `scripts/live-audit/concurrency-attack.mjs`.
+- `0035_cross_outlet_isolation_fix.sql` — live-audit finding, **CRITICAL**:
+  a staff member from a completely different outlet could write real
+  orders into this outlet's data by passing/guessing its IDs — every
+  write RPC in the order/KDS/printing/business-day path checked WHO the
+  caller is but never WHICH OUTLET the row belonged to. Fixed across all
+  13 affected functions (`place_order`, `open_business_day`,
+  `void_order`, `advance_order_status`, `add_items_to_order`,
+  `settle_order`, `advance_order_item_status`,
+  `mark_ticket_items_ready`, `recall_order`, `record_invoice_print`,
+  `enqueue_pra_submission`, `record_pra_result`, `record_pra_failure`).
+  Regression: `scripts/live-audit/cross-outlet-attack.mjs` and
+  `supabase/tests/database/cross_outlet_isolation.sql`. Full incident
+  record: `docs/security-audit-2026-08-13.md`.
 
 `0001`, `0005`, and `0006` were copied from the project's pre-written
 reference SQL at the repo root, per each part's own "reference SQL ready"

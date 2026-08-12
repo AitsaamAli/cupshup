@@ -31,6 +31,17 @@ its specific pass count.
 - `business_day.sql` — `place_order()` refuses to create an order when
   today's business day is closed, and no order is left behind by the
   rejected attempt.
+- `cross_outlet_isolation.sql` — the 2026-08-13 live audit's Case A
+  (CRITICAL): a staff member from a genuinely separate, throwaway
+  outlet cannot read, and cannot write via `place_order`,
+  `open_business_day`, `void_order`, `advance_order_status`,
+  `add_items_to_order`, or `settle_order`, anything belonging to the
+  real outlet — even when targeting a real order id directly. Fixed in
+  `0035_cross_outlet_isolation_fix.sql`; full incident record in
+  `docs/security-audit-2026-08-13.md`. The parts of this attack that
+  need real concurrency or a second real Auth session (rather than
+  identity-switching within one pgTAP transaction) live in
+  `scripts/live-audit/` instead — see that directory's own README.
 
 Every test creates only throwaway `auth.users`/`staff` rows (and one
 throwaway `stock_movements` row) inside its own rolled-back
