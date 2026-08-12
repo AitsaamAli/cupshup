@@ -37,6 +37,16 @@ Run with `npm test` (single run) or `npm run test:watch` (Vitest watch mode).
   done, unpaid) is `bill_requested`. The POS table grid's live Realtime
   wiring itself (`useTables()`) needs a real database, same caveat as
   every other hook in this project.
+- `kds.test.ts` — Part 17's `ticketAgeLevel()` (the 0-5/5-10/10+ minute
+  colour thresholds), `ticketItemsForStation()`/`ticketMatchesStation()`
+  (station filtering, including the "no resolvable station shows on
+  every screen" fallback), and the ticket-time report's three
+  aggregations (`averageTicketMinutes`, `averageMinutesByStation`,
+  `averageMinutesByHour`) against fixed timestamps. The live board
+  itself (`useKdsTickets()`) and the three new RPCs
+  (`advance_order_item_status`/`mark_ticket_items_ready`/`recall_order`)
+  are verified live against the real project — see
+  `supabase/migrations/README.md`.
 
 Money math (`lib/money.ts`), business-date logic (`lib/business-date.ts`),
 and — once built — the order/payment RPC functions are the

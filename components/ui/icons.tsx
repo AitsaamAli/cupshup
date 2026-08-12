@@ -70,3 +70,40 @@ export function SearchIcon({ size = 16, className }: IconProps) {
     </svg>
   );
 }
+
+export function SpeakerIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base} aria-hidden="true">
+      <path d="M4 9v6h4l5 5V4L8 9H4Z" />
+      <path d="M16.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M19 6a9 9 0 0 1 0 12" />
+    </svg>
+  );
+}
+
+export function SpeakerMuteIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base} aria-hidden="true">
+      <path d="M4 9v6h4l5 5V4L8 9H4Z" />
+      <path d="m17 9 5 6M22 9l-5 6" />
+    </svg>
+  );
+}
+
+export function RecallIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base} aria-hidden="true">
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v5h5" />
+    </svg>
+  );
+}
+
+export function BanIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="m5.5 5.5 13 13" />
+    </svg>
+  );
+}

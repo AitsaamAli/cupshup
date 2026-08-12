@@ -4,15 +4,17 @@ Every database change lives here as a numbered SQL file, committed to git.
 **No table is ever created by hand in the Supabase dashboard** — that's how
 staging and production silently drift apart.
 
-> ✅ **Live-verified 2026-08-12.** All 24 files below have actually been
+> ✅ **Live-verified 2026-08-12.** All 26 files below have actually been
 > pushed to and applied against the real linked project (via
 > `supabase db push --db-url ...`), not just reviewed on paper. 29/29
 > tables have RLS enabled, all core functions exist, the seeded data
 > counts match expectations, `business_date_of()` / `tax_rate_bp()` were
-> queried live and returned the correct values, and the expense
+> queried live and returned the correct values, the expense
 > amortization view was tested against a real 31-day row (which caught
-> and fixed a genuine 9-paisa rounding bug) — see "Live verification"
-> below and `docs/expenses.md` §3 for the details.
+> and fixed a genuine 9-paisa rounding bug), and all 21 real menu
+> categories were confirmed backfilled to a `station` with none left
+> null — see "Live verification" below, `docs/expenses.md` §3, and
+> `docs/kitchen-display.md` for the details.
 
 - `0001_schema.sql` — **Part 03.** Core schema: 29 tables, 10 enums, and the
   `ingredient_stock` view.
@@ -93,6 +95,20 @@ staging and production silently drift apart.
   Part 03 but had zero rows — the POS table grid needed something real
   to show. A dedicated table-management screen (add/rename/remove) is
   out of scope for this part; see `docs/pos-terminal.md` §5.
+- `0024_kds_schema.sql` — **Part 17.** `kitchen_station` enum;
+  `menu_categories.station` (backfilled against all 21 real seeded
+  categories, then set `not null`); `orders.ready_at` and
+  `order_items.ready_at` — needed by the ticket-time report, since
+  neither table previously recorded *when* a status change happened.
+- `0025_kds_functions.sql` — **Part 17.** `advance_order_item_status()`,
+  `mark_ticket_items_ready()`, `recall_order()` — original to this
+  project. `order_items` has an existing `kds_update_items` RLS policy
+  from `0005_rls.sql` that looks like it already permits kitchen roles
+  to update item status directly, but that same file's later `revoke
+  ... on ... order_items ... from anon, authenticated` blocks the write
+  before RLS is ever consulted — these three `SECURITY DEFINER`
+  functions are the real write path that policy's intent needed. See
+  `docs/kitchen-display.md` §2.
 
 `0001`, `0005`, and `0006` were copied from the project's pre-written
 reference SQL at the repo root, per each part's own "reference SQL ready"
