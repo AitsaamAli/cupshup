@@ -63,6 +63,21 @@ Run with `npm test` (single run) or `npm run test:watch` (Vitest watch mode).
   prevent, just for a date-picker default instead of an order timestamp).
 - `export.test.ts` — Part 18's `toCsv()`: header + row order, comma/quote/
   newline escaping, and null/undefined rendering as an empty field.
+- `print-templates.test.ts` — Part 19's three print content builders.
+  `buildReceiptDoc()` is checked against the brief's own worked receipt
+  example to the exact rupee (items, per-split tax rates, tendered/
+  change, the REPRINT marker appearing from the second print onward,
+  and the offline case — no QR, "PRA No: pending" — when PRA hasn't
+  confirmed yet). `buildKitchenTicketDoc()` confirms station filtering
+  (reused from Part 17) and that no price ever appears on a kitchen
+  ticket. `buildDayReportDoc()` confirms Part 13's `ClosingSnapshot` is
+  printed as-is, never re-derived.
+- `pra.test.ts` — Part 19's `nextRetryDelayMs()`, mirroring
+  `record_pra_failure()`'s SQL backoff (doubling per attempt, capped at
+  60 minutes).
+- `print-queue.test.ts` — Part 19's local print-retry queue's pure list
+  operations (`withNewJob`/`withoutJob`/`withFailedAttempt`), independent
+  of `localStorage`.
 
 Money math (`lib/money.ts`), business-date logic (`lib/business-date.ts`),
 and — once built — the order/payment RPC functions are the

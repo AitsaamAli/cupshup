@@ -19,6 +19,7 @@ import { ItemGrid, type SelectableItem } from "@/components/pos/item-grid";
 import { ModifierSheet, type SelectedModifier } from "@/components/pos/modifier-sheet";
 import { CartPanel, type CartLine, type ExistingLine } from "@/components/pos/cart-panel";
 import { VoidOrderDialog } from "@/components/pos/void-order-dialog";
+import { PendingPrintsIndicator } from "@/components/print/pending-prints-indicator";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 
@@ -298,6 +299,7 @@ export default function PosPage() {
         <span>Cashier: {staff?.name}</span>
         <span className="tabular-nums">{day.business_date}</span>
         <span className="text-brand-400">Day: OPEN</span>
+        <PendingPrintsIndicator />
       </header>
 
       {!inCartBuilding ? (

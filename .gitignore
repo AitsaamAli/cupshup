@@ -30,8 +30,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files (can opt-in for committing if needed) — except the .example
+# template itself, which documents every variable the app uses and has
+# no real secrets in it; excluding it too meant .env.local.example's own
+# edits were never actually reaching git history.
 .env*
+!.env.local.example
 
 # vercel
 .vercel

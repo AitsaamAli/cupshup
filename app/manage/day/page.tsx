@@ -15,6 +15,8 @@ import {
 } from "@/lib/business-day";
 import { createClient } from "@/lib/supabase/client";
 import { formatPaisa, rupeesToPaisa, type Paisa } from "@/lib/money";
+import { PrintButton } from "@/components/print/print-button";
+import { buildDayReportDoc } from "@/lib/print-templates";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 const CAN_OPEN_CLOSE_DAY = new Set(["owner", "manager", "supervisor"]);
@@ -126,7 +128,7 @@ export default function BusinessDayPage() {
       )}
 
       {day?.status === "closed" && day.closing_snapshot && (
-        <ClosingReport snapshot={day.closing_snapshot} />
+        <ClosingReport snapshot={day.closing_snapshot} businessDate={day.business_date} />
       )}
     </main>
   );
@@ -365,8 +367,15 @@ function CloseDayForm({ onClose }: { onClose: (countedPaisa: number) => Promise<
   );
 }
 
-function ClosingReport({ snapshot }: { snapshot: ClosingSnapshot }) {
+function ClosingReport({ snapshot, businessDate }: { snapshot: ClosingSnapshot; businessDate: string }) {
   if (!snapshot) return null;
+
+  async function buildReport() {
+    const supabase = createClient();
+    const { data } = await supabase.from("outlets").select("name").eq("id", OUTLET_ID).single();
+    const outletName = (data as unknown as { name: string } | null)?.name ?? "Cup Shup";
+    return buildDayReportDoc({ outletName, businessDate, snapshot });
+  }
   const rows: [string, number][] = [
     ["Orders settled", snapshot.orders],
     ["Revenue", snapshot.revenue_paisa],
@@ -398,6 +407,9 @@ function ClosingReport({ snapshot }: { snapshot: ClosingSnapshot }) {
           ))}
         </tbody>
       </table>
+      <div className="mt-3">
+        <PrintButton kind="report" getDoc={buildReport} label="Print report" />
+      </div>
     </section>
   );
 }

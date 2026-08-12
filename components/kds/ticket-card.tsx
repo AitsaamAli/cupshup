@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { BanIcon, RecallIcon } from "@/components/ui/icons";
+import { BanIcon, RecallIcon, PrintIcon } from "@/components/ui/icons";
+import { useToast } from "@/components/ui/Toast";
 import {
   ticketAgeLevel,
   ticketAgeMinutes,
@@ -11,6 +12,8 @@ import {
   type KdsOrderItem,
   type Station,
 } from "@/lib/kds";
+import { buildKitchenTicketDoc } from "@/lib/print-templates";
+import { printOrQueue } from "@/lib/print-queue";
 
 const AGE_BORDER: Record<ReturnType<typeof ticketAgeLevel>, string> = {
   neutral: "border-neutral-800",
@@ -67,10 +70,18 @@ export function TicketCard({
     return () => clearInterval(id);
   }, []);
 
+  const { showToast } = useToast();
   const age = ticketAgeMinutes(ticket.created_at);
   const level = ticketAgeLevel(age);
   const visibleItems = ticketItemsForStation(ticket.items, station);
   const allVisibleReady = visibleItems.every((i) => i.status === "ready" || i.status === "served");
+
+  async function handlePrintTicket() {
+    const { printed } = await printOrQueue("kitchen", buildKitchenTicketDoc(ticket, station), {
+      meta: { station },
+    });
+    showToast(printed ? "Ticket sent to printer." : "Printer unreachable — queued for retry.", printed ? "success" : "error");
+  }
 
   return (
     <div className={`flex flex-col gap-3 rounded-md border-2 bg-neutral-900 p-4 ${AGE_BORDER[level]}`}>
@@ -86,6 +97,14 @@ export function TicketCard({
           <div className={`text-xl font-bold tabular-nums ${AGE_TEXT[level]}`}>{Math.floor(age)} min</div>
           {ticket.status === "ready" && <StatusBadge status="ready" label="Ready" />}
         </div>
+        <button
+          type="button"
+          onClick={handlePrintTicket}
+          title="Print this station's items to the kitchen printer"
+          className="flex min-h-16 min-w-16 items-center justify-center rounded-md bg-neutral-800 text-neutral-200 hover:bg-neutral-700"
+        >
+          <PrintIcon size={24} />
+        </button>
       </div>
 
       {ticket.note && <p className="rounded-md bg-neutral-800 px-3 py-2 text-base text-neutral-200">{ticket.note}</p>}

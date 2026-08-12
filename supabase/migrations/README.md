@@ -4,7 +4,7 @@ Every database change lives here as a numbered SQL file, committed to git.
 **No table is ever created by hand in the Supabase dashboard** — that's how
 staging and production silently drift apart.
 
-> ✅ **Live-verified 2026-08-12.** All 29 files below have actually been
+> ✅ **Live-verified 2026-08-12.** All 31 files below have actually been
 > pushed to and applied against the real linked project (via
 > `supabase db push --db-url ...`), not just reviewed on paper. 29/29
 > tables have RLS enabled, all core functions exist, the seeded data
@@ -12,12 +12,13 @@ staging and production silently drift apart.
 > queried live and returned the correct values, the expense
 > amortization view was tested against a real 31-day row (which caught
 > and fixed a genuine 9-paisa rounding bug), all 21 real menu categories
-> were confirmed backfilled to a `station` with none left null, and
-> every Part 18 owner-only view was confirmed to return zero rows
-> outside an authenticated session, proving the `has_role('owner')` gate
-> is real rather than theoretical — see "Live verification" below,
-> `docs/expenses.md` §3, `docs/kitchen-display.md`, and
-> `docs/reports-and-pl.md` for the details.
+> were confirmed backfilled to a `station` with none left null, every
+> Part 18 owner-only view was confirmed to return zero rows outside an
+> authenticated session, and `record_invoice_print()` was confirmed to
+> return `integer` (not `void`) after Part 19's redefinition — see
+> "Live verification" below, `docs/expenses.md` §3,
+> `docs/kitchen-display.md`, `docs/reports-and-pl.md`, and
+> `docs/printing-and-pra-invoice.md` for the details.
 
 - `0001_schema.sql` — **Part 03.** Core schema: 29 tables, 10 enums, and the
   `ingredient_stock` view.
@@ -121,6 +122,8 @@ staging and production silently drift apart.
 - `0027_reports_functions.sql` — **Part 18.** `record_invoice_print()` —
   original to this project, any staff member may call it (printing a
   bill isn't manager-only), the resulting report is owner-only.
+  *(Redefined in Part 19's `0030_printing_functions.sql` to return the
+  print's sequence number instead of `void` — see below.)*
 - `0028_reports_views.sql` — **Part 18.** Resolves the last forward
   reference tracked in this file: `daily_pl` and `product_performance`
   (the two pieces of the full reference file left since Part 11 — see
@@ -134,6 +137,17 @@ staging and production silently drift apart.
   reference file's own `revoke all ...; grant select ... to
   authenticated` (still commented out below) could never have achieved
   real owner-exclusivity by itself.
+- `0029_printing_schema.sql` — **Part 19.** `pra_submission_status` enum;
+  `pra_submission_queue` (the offline PRA retry queue); drops the Part
+  18 version of `record_invoice_print()` so its return type can change
+  (Postgres won't let `create or replace` do that).
+- `0030_printing_functions.sql` — **Part 19.** `record_invoice_print()`
+  redefined to return the print's own sequence number (needed to render
+  "REPRINT #N" immediately, without a second query — the underlying
+  `invoice_prints` table from Part 18 is unchanged);
+  `enqueue_pra_submission()`, `record_pra_result()`,
+  `record_pra_failure()` (exponential backoff computed in SQL, capped at
+  60 minutes).
 
 `0001`, `0005`, and `0006` were copied from the project's pre-written
 reference SQL at the repo root, per each part's own "reference SQL ready"

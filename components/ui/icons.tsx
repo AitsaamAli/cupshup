@@ -107,3 +107,13 @@ export function BanIcon({ size = 16, className }: IconProps) {
     </svg>
   );
 }
+
+export function PrintIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base} aria-hidden="true">
+      <path d="M6 9V3h12v6" />
+      <rect x="4" y="9" width="16" height="8" rx="1" />
+      <path d="M6 14h12v7H6z" />
+    </svg>
+  );
+}

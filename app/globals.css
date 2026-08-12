@@ -127,3 +127,73 @@ body {
     outline-offset: 1px;
   }
 }
+
+/* =====================================================================
+   Print fallback — Part 19. This is the BACKUP path (§2a of the brief):
+   the local print agent (print-agent/) is the real one, avoiding
+   window.print()'s dialog entirely. When the agent isn't reachable,
+   components/print/PrintModal.tsx falls back to this — the exact same
+   `@media print { visibility: hidden }` technique the old system used,
+   but this time WITH the `@page` rule the old code was actually
+   missing. That missing @page rule — not the visibility technique
+   itself — is what printed on A4 with huge margins instead of on an
+   80mm roll; see docs/printing-and-pra-invoice.md §2 for the full story.
+   ===================================================================== */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-doc,
+  .print-doc * {
+    visibility: visible;
+  }
+  .print-doc {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 80mm;
+  }
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+}
+
+.print-doc {
+  font-family: ui-monospace, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #000;
+  background: #fff;
+  padding: 4mm;
+}
+.print-doc-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5em;
+  white-space: pre-wrap;
+}
+.print-doc-center {
+  justify-content: center;
+  text-align: center;
+}
+.print-doc-bold {
+  font-weight: 700;
+}
+.print-doc-large {
+  font-size: 1.6em;
+  font-weight: 700;
+}
+.print-doc-divider {
+  border: none;
+  border-top: 1px dashed #000;
+  margin: 3px 0;
+}
+.print-doc-blank {
+  height: 1em;
+}
+.print-doc-qr {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0;
+}

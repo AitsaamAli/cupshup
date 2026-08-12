@@ -14,6 +14,10 @@ import {
   type TaxRateInfo,
 } from "@/lib/settlement";
 import { ManagerAuthDialog } from "@/components/pos/manager-auth-dialog";
+import { PrintButton } from "@/components/print/print-button";
+import { fetchReceiptData, recordInvoicePrint } from "@/lib/receipt-data";
+import { buildReceiptDoc, type PrintDoc } from "@/lib/print-templates";
+import { submitToPra } from "@/lib/pra";
 
 const APPROVER_ROLES = new Set(["owner", "manager", "supervisor"]);
 const METHOD_LABEL: Record<PaymentMethod, string> = {
@@ -73,6 +77,8 @@ export default function SettlePage() {
   const [voidNote, setVoidNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [readyToPrint, setReadyToPrint] = useState(false);
+  const [praStatus, setPraStatus] = useState<"idle" | "pending" | "synced" | "queued">("idle");
 
   useEffect(() => {
     const supabase = createClient();
@@ -143,12 +149,47 @@ export default function SettlePage() {
         })),
         { discountPaisa, serviceChargePaisa, deliveryFeePaisa }
       );
-      router.push("/pos");
+      await prepareReceipt();
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  /**
+   * "order settle -> PRA ko bhejo -> fiscal number + QR wapas -> print"
+   * (brief §5). PRA submission is best-effort and never blocks the
+   * receipt: if it fails or times out, submitToPra() has already
+   * queued it for retry (0030_printing_functions.sql), and the receipt
+   * prints with the LOCAL invoice_no and no QR either way — exactly
+   * "internet down ho to local number par print karo". Doesn't build
+   * the receipt itself — that happens fresh on every actual Print click
+   * (buildReceiptForPrint below), so the REPRINT counter only advances
+   * on a real click, never just because this ran.
+   */
+  async function prepareReceipt() {
+    setReadyToPrint(true);
+    setPraStatus("pending");
+    try {
+      await submitToPra(order!.id);
+      setPraStatus("synced");
+    } catch {
+      setPraStatus("queued");
+    }
+  }
+
+  async function buildReceiptForPrint(): Promise<PrintDoc> {
+    const [data, printNumber] = await Promise.all([fetchReceiptData(order!.id), recordInvoicePrint(order!.id)]);
+    return buildReceiptDoc({
+      outlet: data.outlet,
+      order: data.order,
+      payments: data.payments,
+      cashierName: data.cashierName,
+      cashierCode: data.cashierCode,
+      terminalName: data.terminalName,
+      printNumber,
+    });
   }
 
   async function submitVoid() {
@@ -170,6 +211,26 @@ export default function SettlePage() {
   }
 
   if (!order) return <p className="p-8 text-neutral-400">Loading order…</p>;
+
+  if (readyToPrint) {
+    return (
+      <main className="min-h-screen bg-neutral-950 p-6 text-white">
+        <h1 className="mb-1 text-xl font-semibold">Order #{order.order_no} settled</h1>
+        <p className="mb-6 text-sm text-neutral-400">
+          {praStatus === "pending" && "Sending to PRA…"}
+          {praStatus === "synced" && "PRA fiscal number received."}
+          {praStatus === "queued" && "PRA sync failed — queued for retry. Receipt still prints with the local invoice number."}
+        </p>
+        <PrintButton kind="receipt" getDoc={buildReceiptForPrint} label="Print receipt" />
+        <button
+          onClick={() => router.push("/pos")}
+          className="mt-4 block rounded-md bg-white px-4 py-3 font-medium text-neutral-950"
+        >
+          Back to POS
+        </button>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-neutral-950 p-6 text-white">
