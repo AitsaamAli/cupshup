@@ -65,7 +65,19 @@ export const config = {
      *   redirecting an unauthenticated /sw.js request to /login,
      *   handing the browser an HTML page where it expected JavaScript
      *   and silently breaking registration.
+     * - api/* — a REAL bug, found live: app/api/auth/pin/route.ts is
+     *   the PIN-verification call itself, made while the browser has
+     *   NO session yet (that's the entire point of it). Without this
+     *   exclusion, the middleware redirected that unauthenticated POST
+     *   to /login, which returned the login PAGE's HTML with a 200 —
+     *   the client's `res.json()` then threw trying to parse HTML as
+     *   JSON, surfacing as "Network error — try again." on every
+     *   single login attempt, correct PIN or not. Every API route
+     *   handles its own auth internally already (RPC calls fail their
+     *   own way when unauthenticated — see current_staff() checks
+     *   throughout supabase/migrations/) — none of them need or want
+     *   this middleware's redirect.
      */
-    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.json|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
