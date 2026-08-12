@@ -22,6 +22,11 @@ Run with `npm test` (single run) or `npm run test:watch` (Vitest watch mode).
   Part 12 (10kg @ Rs 800 in stock, buy 10kg @ Rs 900 → new average
   exactly Rs 850), plus `recordPurchaseGrn()`/`recordPurchaseReturn()`/
   `upsertSupplier()`'s RPC call shapes.
+- `business-day-shifts.test.ts` — Part 13's expected-cash formula
+  (`previewExpectedCash()`, mirroring both `close_shift()`'s per-shift
+  and `close_business_day()`'s per-day calculations), plus every new
+  RPC's call shape (`openBusinessDay`, `closeBusinessDay`, `openShift`,
+  `closeShift`, `recordCashMovement`).
 
 Money math (`lib/money.ts`), business-date logic (`lib/business-date.ts`),
 and — once built — the order/payment RPC functions are the

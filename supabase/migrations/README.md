@@ -4,7 +4,7 @@ Every database change lives here as a numbered SQL file, committed to git.
 **No table is ever created by hand in the Supabase dashboard** — that's how
 staging and production silently drift apart.
 
-> ✅ **Live-verified 2026-08-12.** All 19 files below have actually been
+> ✅ **Live-verified 2026-08-12.** All 20 files below have actually been
 > pushed to and applied against the real linked project (via
 > `supabase db push --db-url ...`), not just reviewed on paper. 29/29
 > tables have RLS enabled, all core functions exist, the seeded data
@@ -66,6 +66,13 @@ staging and production silently drift apart.
   finding in Part 11).
 - `0018_purchase_invoice_storage.sql` — **Part 12.** `purchase-invoices`
   Storage bucket — private (unlike `menu-images`), owner/manager only.
+- `0019_business_day_functions.sql` — **Part 13.** `open_business_day()`,
+  `close_business_day()` (both from the reference `0002_functions.sql` —
+  this closes the last gap in `0005_rls.sql`'s original grant statement,
+  tracked since Part 04), plus `open_shift()`, `close_shift()`,
+  `record_cash_movement()` (original — per-cashier shifts aren't in the
+  reference file, which only ever creates one shift per day). Also adds
+  `expenses.shift_id` (nullable) — see `docs/business-day-and-shifts.md`.
 
 `0001`, `0005`, and `0006` were copied from the project's pre-written
 reference SQL at the repo root, per each part's own "reference SQL ready"
@@ -101,16 +108,16 @@ policies), the tax functions in `0004_tax_functions.sql`, `business_date_of()`
 **What's been split out so far:** `current_staff`, `has_role`, `my_outlet`
 (Part 07), `tax_rate_bp`, `class_of_method`, `next_invoice_no` (Part 05),
 `business_date_of` (Part 06), `current_price_paisa`, `recipe_cost_paisa`,
-`next_order_no`, `place_order`, `void_order` (Part 09), and `settle_order`
-(Part 10). None of these call anything beyond what Part 03's schema
+`next_order_no`, `place_order`, `void_order` (Part 09), `settle_order`
+(Part 10), `stock_variance` (Part 11, extended with a rupee column the
+reference didn't have), and `open_business_day`/`close_business_day`
+(Part 13). None of these call anything beyond what Part 03's schema
 already created, so extracting them ahead of the parts that formally
 introduce them elsewhere in the guide is safe — confirmed live, not just
 in theory.
 
-and `stock_variance` (Part 11, extended with a rupee column the
-reference didn't have). **What's still missing:** `open_business_day`,
-`close_business_day` (Part 13), and `daily_pl`/`product_performance`
-(Part 18).
+**What's still missing:** `daily_pl` and `product_performance` (Part 18)
+— the only two pieces of the full reference file left.
 
 ## A real bug found in Part 11: RLS-bypassing views
 
@@ -128,24 +135,23 @@ reloptions` shows `security_invoker=true` on both.
 
 ## Deferred statements in `0005_rls.sql`
 
-Two statements from the reference file are commented out, because pushing
-them against the live project failed on exactly the forward-dependency
-gap documented above:
+Two statements from the reference file were commented out, because
+pushing them against the live project failed on exactly the
+forward-dependency gap documented above:
 
 1. `revoke all on daily_pl, product_performance, stock_variance ...` /
-   `grant select on daily_pl, ... to authenticated` — these three views
-   don't exist until Part 18.
+   `grant select on daily_pl, ... to authenticated` — **still deferred.**
+   These three views don't exist until Part 18. Re-added, uncommented, in
+   a small migration once Part 18 lands — not by editing `0005_rls.sql`
+   again (it's already been applied to the live database; migrations are
+   append-only from here on, same as every other table in this project).
 2. The final `grant execute on function place_order, settle_order,
    void_order, open_business_day, close_business_day to authenticated` —
-   `place_order`/`settle_order`/`void_order` already have their own
-   explicit grants in their own migration files, so only
-   `open_business_day`/`close_business_day` (Part 13) are actually still
-   missing from this statement.
-
-Both are re-added, uncommented, in a small migration once Parts 13 and 18
-land — not by editing this file again (it's already been applied to the
-live database at this point; migrations are append-only from here on,
-same as every other table in this project).
+   **fully resolved as of Part 13.** All five functions now have their
+   own explicit grants in their own migration files
+   (`0010`/`0011`/`0019`), so this specific statement is permanently
+   superseded rather than needing to be replayed — nothing left to
+   re-add for it.
 
 ## Live verification (2026-08-12)
 
