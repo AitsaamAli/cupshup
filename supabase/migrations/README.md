@@ -4,10 +4,10 @@ Every database change lives here as a numbered SQL file, committed to git.
 **No table is ever created by hand in the Supabase dashboard** — that's how
 staging and production silently drift apart.
 
-> ✅ **Live-verified 2026-08-12.** All 11 files below have actually been
+> ✅ **Live-verified 2026-08-12.** All 15 files below have actually been
 > pushed to and applied against the real linked project (via
 > `supabase db push --db-url ...`), not just reviewed on paper. 29/29
-> tables have RLS enabled, all 9 core functions exist, the seeded data
+> tables have RLS enabled, all core functions exist, the seeded data
 > counts match expectations, and `business_date_of()` / `tax_rate_bp()`
 > were queried live and returned the correct values — see "Live
 > verification" below for the exact checks run.
@@ -45,6 +45,15 @@ staging and production silently drift apart.
 - `0011_settlement_functions.sql` — **Part 10.** `settle_order()` — split
   payments, each taxed at its own rate, from the reference
   `0002_functions.sql`.
+- `0012_inventory_functions.sql` — **Part 11.** `upsert_recipe_line()`,
+  `remove_recipe_line()`, `record_purchase()` (weighted-average cost),
+  `record_stock_count()` — original to this project.
+- `0013_stock_variance_view.sql` — **Part 11.** `stock_variance` (subset
+  of the reference file, plus an `unexplained_variance_paisa` column the
+  reference didn't have). Also retroactively fixes a real RLS-bypass bug
+  on `ingredient_stock` — see "A real bug found in Part 11" below.
+- `0014_unit_conversions.sql` — **Part 11.** `unit_conversions` table —
+  UI convenience only, not load-bearing (see `docs/inventory-and-recipes.md`).
 
 `0001`, `0005`, and `0006` were copied from the project's pre-written
 reference SQL at the repo root, per each part's own "reference SQL ready"
@@ -86,8 +95,24 @@ already created, so extracting them ahead of the parts that formally
 introduce them elsewhere in the guide is safe — confirmed live, not just
 in theory.
 
-**What's still missing:** `open_business_day`, `close_business_day`
-(Part 13), and the three reporting views (Part 18).
+and `stock_variance` (Part 11, extended with a rupee column the
+reference didn't have). **What's still missing:** `open_business_day`,
+`close_business_day` (Part 13), and `daily_pl`/`product_performance`
+(Part 18).
+
+## A real bug found in Part 11: RLS-bypassing views
+
+A plain `create view` (no `security_invoker`) is owned by whichever role
+runs migrations — Supabase's migration runner, which has `BYPASSRLS`.
+Postgres then applies RLS using the *view owner's* exemption when the
+view is queried, not the querying user's. `ingredient_stock` (Part 03's
+reference view, copied byte-for-byte) had exactly this shape, meaning it
+was silently showing **every outlet's** ingredient stock to any
+authenticated staff member — invisible only because this deployment has a
+single outlet. `0013_stock_variance_view.sql` fixes it with `alter view
+ingredient_stock set (security_invoker = true);` and applies the same
+setting to the new `stock_variance` view. Verified live: `pg_class.
+reloptions` shows `security_invoker=true` on both.
 
 ## Deferred statements in `0005_rls.sql`
 
