@@ -105,9 +105,13 @@ export default function LoginPage() {
       }
 
       const supabase = createClient();
+      // Only token_hash + type — NOT email alongside it. Verified live:
+      // passing email here makes this version of supabase-js/GoTrue
+      // reject the call outright ("Only the token_hash and type should
+      // be provided"), which is exactly why every login attempt was
+      // failing at this exact step before this fix.
       const { error: verifyError } = await supabase.auth.verifyOtp({
         type: "magiclink",
-        email: body.email,
         token_hash: body.tokenHash,
       });
       if (verifyError) {
