@@ -1,0 +1,3 @@
+-- Local dev seed data (menu, tax rates, a test outlet).
+-- Populated in Part 03 from the reference file `0004_seed.sql`.
+-- Run automatically by `npm run db:reset`.
