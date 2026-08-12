@@ -175,9 +175,14 @@ create policy owner_reads_audit on audit_log for select
   using (outlet_id = my_outlet() and has_role('owner'));
 -- no insert policy: only SECURITY DEFINER functions write here
 
--- Views inherit RLS from their base tables, but lock the P&L explicitly:
-revoke all on daily_pl, product_performance, stock_variance from anon, authenticated;
-grant select on daily_pl, product_performance, stock_variance to authenticated;
+-- Views inherit RLS from their base tables, but lock the P&L explicitly.
+-- DEFERRED: daily_pl / product_performance / stock_variance don't exist
+-- yet — they're Part 18's reporting views. This statement is re-added in
+-- a later migration once Part 18 creates them (documented in
+-- supabase/migrations/README.md). Not a defect — those views genuinely
+-- aren't built yet at this point in the guide's pacing.
+-- revoke all on daily_pl, product_performance, stock_variance from anon, authenticated;
+-- grant select on daily_pl, product_performance, stock_variance to authenticated;
 
 -- Staff can only ever manage staff if they are the owner
 create policy owner_manages_staff on staff for all
@@ -191,6 +196,11 @@ revoke insert, update, delete on orders, order_items, payments, order_voids,
        business_days, shifts, invoice_counters, order_counters
   from anon, authenticated;
 
-grant execute on function place_order, settle_order, void_order,
-                          open_business_day, close_business_day
-  to authenticated;
+-- place_order/settle_order/void_order already have their own explicit
+-- grants (0010/0011_*.sql), so this only needs to cover the two that
+-- don't exist yet. DEFERRED: open_business_day/close_business_day are
+-- Part 13's functions — this statement is re-added once they exist
+-- (documented in supabase/migrations/README.md).
+-- grant execute on function place_order, settle_order, void_order,
+--                           open_business_day, close_business_day
+--   to authenticated;
