@@ -4,7 +4,7 @@ Every database change lives here as a numbered SQL file, committed to git.
 **No table is ever created by hand in the Supabase dashboard** — that's how
 staging and production silently drift apart.
 
-> ✅ **Live-verified 2026-08-12.** All 23 files below have actually been
+> ✅ **Live-verified 2026-08-12.** All 24 files below have actually been
 > pushed to and applied against the real linked project (via
 > `supabase db push --db-url ...`), not just reviewed on paper. 29/29
 > tables have RLS enabled, all core functions exist, the seeded data
@@ -88,6 +88,11 @@ staging and production silently drift apart.
 - `0022_expense_receipt_storage.sql` — **Part 14.** `expense-receipts`
   Storage bucket — private, supervisor+ (matches who can record an
   expense at all).
+- `0023_dining_tables_seed.sql` — **Part 16.** Seeds 10 dining tables
+  (T1–T10) for the single outlet. `dining_tables` has existed since
+  Part 03 but had zero rows — the POS table grid needed something real
+  to show. A dedicated table-management screen (add/rename/remove) is
+  out of scope for this part; see `docs/pos-terminal.md` §5.
 
 `0001`, `0005`, and `0006` were copied from the project's pre-written
 reference SQL at the repo root, per each part's own "reference SQL ready"

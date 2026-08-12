@@ -1,0 +1,56 @@
+"use client";
+
+import { useTables, type TableWithStatus } from "@/lib/tables";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+
+const STATUS_MAP = {
+  empty: { status: "neutral" as const, label: "Empty" },
+  running: { status: "waiting" as const, label: "Serving" },
+  bill_requested: { status: "ready" as const, label: "Bill" },
+};
+
+/**
+ * Table grid for dine-in — Part 16. Status is live (lib/tables.ts):
+ * empty / serving (order sent, not yet all served) / bill (served,
+ * awaiting settlement). Picking an empty table starts a fresh order;
+ * picking an occupied one resumes its open tab so more items can be
+ * added before it's settled.
+ */
+export function TablePicker({
+  outletId,
+  onPick,
+}: {
+  outletId: string;
+  onPick: (table: TableWithStatus) => void;
+}) {
+  const { tables, loading } = useTables(outletId);
+
+  if (loading) return <p className="p-8 text-neutral-400">Loading tables…</p>;
+
+  return (
+    <div className="p-6">
+      <h1 className="mb-6 text-xl font-semibold">Select a table</h1>
+      <div className="grid grid-cols-4 gap-4 sm:grid-cols-5">
+        {tables.map((t) => {
+          const meta = STATUS_MAP[t.status];
+          return (
+            <button
+              key={t.id}
+              onClick={() => onPick(t)}
+              className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-md border border-neutral-800 bg-neutral-900 p-3 hover:border-neutral-600"
+            >
+              <span className="text-lg font-medium tabular-nums">{t.label}</span>
+              <StatusBadge status={meta.status} label={meta.label} />
+              {t.openOrder && (
+                <span className="text-xs text-neutral-500">#{t.openOrder.order_no}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {tables.length === 0 && (
+        <p className="mt-6 text-sm text-neutral-500">No tables set up for this outlet yet.</p>
+      )}
+    </div>
+  );
+}

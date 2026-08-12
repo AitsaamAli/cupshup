@@ -32,6 +32,11 @@ Run with `npm test` (single run) or `npm run test:watch` (Vitest watch mode).
   last-day rounding fix (`previewAmortizedDailyAmount()` — verified
   against both the brief's 30-day round number and the real 31-day case
   that exposed the bug), and the report-summary helpers.
+- `tables.test.ts` — Part 16's `deriveTableStatus()`: no open order is
+  `empty`, `sent_to_kitchen`/`ready` is `running`, `served` (kitchen
+  done, unpaid) is `bill_requested`. The POS table grid's live Realtime
+  wiring itself (`useTables()`) needs a real database, same caveat as
+  every other hook in this project.
 
 Money math (`lib/money.ts`), business-date logic (`lib/business-date.ts`),
 and — once built — the order/payment RPC functions are the

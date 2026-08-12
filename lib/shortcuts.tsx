@@ -6,6 +6,14 @@ export interface ShortcutDef {
   key: string; // e.g. "n", "/", a single KeyboardEvent.key value
   description: string;
   handler: (e: KeyboardEvent) => void;
+  /** Require Ctrl (or Cmd on macOS) to be held. Defaults to false. */
+  ctrlKey?: boolean;
+  /** Fire even while an input/textarea/select has focus — needed for
+   * things like "Enter sends the order" on POS (Part 16), where staff
+   * are usually mid-search when they press it. Defaults to false, so
+   * every other screen's shortcuts keep the old "never fire while
+   * typing" behaviour unless they explicitly opt in. */
+  allowWhileTyping?: boolean;
 }
 
 interface ShortcutsContextValue {
@@ -57,14 +65,13 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
         setOverlayOpen(false);
         return;
       }
-      if (isTyping) return;
-
       for (const def of shortcuts.values()) {
-        if (def.key === e.key) {
-          e.preventDefault();
-          def.handler(e);
-          return;
-        }
+        if (isTyping && !def.allowWhileTyping) continue;
+        if (def.key !== e.key) continue;
+        if (!!def.ctrlKey !== (e.ctrlKey || e.metaKey)) continue;
+        e.preventDefault();
+        def.handler(e);
+        return;
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -85,18 +92,26 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
  * what lets the registry replace a screen's own shortcut on re-render
  * instead of accumulating duplicates.
  */
-export function useShortcut(id: string, key: string, description: string, handler: (e: KeyboardEvent) => void) {
+export function useShortcut(
+  id: string,
+  key: string,
+  description: string,
+  handler: (e: KeyboardEvent) => void,
+  options: { ctrlKey?: boolean; allowWhileTyping?: boolean } = {}
+) {
   const ctx = useContext(ShortcutsContext);
+  const { ctrlKey, allowWhileTyping } = options;
   useEffect(() => {
     if (!ctx) return;
-    ctx.register(id, { key, description, handler });
+    ctx.register(id, { key, description, handler, ctrlKey, allowWhileTyping });
     return () => ctx.unregister(id);
     // `handler` is deliberately excluded: re-registering on every render
     // (because an inline closure is a new reference each time) would
-    // thrash the registry map for no benefit — id/key/description
-    // changing is what actually means "this is a different shortcut."
+    // thrash the registry map for no benefit — id/key/description/
+    // ctrlKey/allowWhileTyping changing is what actually means "this is
+    // a different shortcut."
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, key, description, ctx]);
+  }, [id, key, description, ctx, ctrlKey, allowWhileTyping]);
 }
 
 export function useShortcutsOverlay(): ShortcutsContextValue {
