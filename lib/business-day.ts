@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { castRows } from "@/lib/supabase/rows";
+import { offlineDb } from "@/lib/offline-db";
+import { isNetworkError } from "@/lib/offline-network";
 
 export interface BusinessDay {
   id: string;
@@ -51,21 +53,65 @@ export type CashMovementType = "float_in" | "drop" | "pickup" | "paid_out" | "pa
 /** The outlet's currently open business day, if any, plus its shifts —
  * kept live via Realtime so a manager's screen updates the instant
  * anyone opens/closes a shift or the day itself. */
+/**
+ * Part 20: this is the single most important place the "network
+ * failure looks identical to empty data" bug (see lib/menu.ts's own
+ * fix) could bite — `data: null` on a dead connection previously meant
+ * `latest = null`, which every day-gated screen (POS, KDS) reads as
+ * "no open day," and POS's own day-closed screen would then block a
+ * cashier from taking ANY order while genuinely offline, which is
+ * exactly backwards from "POS ko chalte rehna hai." reload() now checks
+ * the query's own `error` for a network failure and falls back to the
+ * last cached day status (IndexedDB) instead, flagged `offline: true`
+ * so the UI can say "using last known status" rather than pretend
+ * nothing's wrong.
+ */
 export function useBusinessDay(outletId: string) {
   const [day, setDay] = useState<BusinessDay | null>(null);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
 
   const reload = useCallback(async () => {
     const supabase = createClient();
-    const { data: days } = await supabase
+    const daysRes = await supabase
       .from("business_days")
       .select("*")
       .eq("outlet_id", outletId)
       .order("opened_at", { ascending: false })
       .limit(1);
-    const latest = castRows<BusinessDay>(days)[0] ?? null;
+
+    if (daysRes.error && isNetworkError(daysRes.error)) {
+      const cached = await offlineDb.dayCache.get(outletId);
+      if (cached) {
+        setDay({
+          id: `offline-${outletId}`,
+          outlet_id: outletId,
+          business_date: cached.business_date,
+          status: cached.status,
+          opened_by: null,
+          opened_at: cached.cachedAt,
+          closed_by: null,
+          closed_at: null,
+          closing_snapshot: null,
+        });
+      }
+      setOffline(true);
+      setLoading(false);
+      return;
+    }
+
+    const latest = castRows<BusinessDay>(daysRes.data)[0] ?? null;
     setDay(latest);
+    setOffline(false);
+    if (latest) {
+      await offlineDb.dayCache.put({
+        outletId,
+        business_date: latest.business_date,
+        status: latest.status,
+        cachedAt: new Date().toISOString(),
+      });
+    }
 
     if (latest) {
       const { data: shiftRows } = await supabase
@@ -93,7 +139,7 @@ export function useBusinessDay(outletId: string) {
     };
   }, [outletId, reload]);
 
-  return { day, shifts, loading, reload };
+  return { day, shifts, loading, offline, reload };
 }
 
 export async function openBusinessDay(outletId: string, openingFloatPaisa: number) {

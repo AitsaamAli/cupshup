@@ -50,7 +50,7 @@ export class OrderError extends Error {
   }
 }
 
-interface PlaceOrderOptions {
+export interface PlaceOrderOptions {
   tableId?: string;
   customerId?: string;
   note?: string;
@@ -63,6 +63,21 @@ interface PlaceOrderOptions {
  * Places an order. The browser never sends a price here — only
  * menu_item_id/qty/modifiers — place_order() (Part 09) looks up every
  * price and cost itself, inside one transaction.
+ *
+ * Part 20: verified empirically against this project's actual
+ * supabase-js version — a dead connection does NOT make `.rpc()`
+ * throw; it resolves normally with
+ * `{ data: null, error: { message: "TypeError: fetch failed" } }`,
+ * indistinguishable in shape from any other rejected call. That text
+ * flows straight through into `OrderError.message` below, which is
+ * exactly what `isNetworkError()` (lib/offline-network.ts) checks to
+ * decide whether Part 20's offline-aware wrapper
+ * (lib/offline-orders.ts) should queue the order instead of surfacing
+ * a hard failure. The try/catch stays as defensive coverage for a
+ * genuinely thrown error (a future supabase-js version, or some other
+ * failure mode this project hasn't hit) — either way the result is
+ * still a well-formed OrderError carrying the idempotency key, never a
+ * raw unwrapped exception.
  */
 export async function placeOrder(
   outletId: string,
@@ -73,18 +88,23 @@ export async function placeOrder(
   const idempotencyKey = options.idempotencyKey ?? crypto.randomUUID();
   const supabase = createClient();
 
-  const { data, error } = await supabase.rpc("place_order", {
-    p_outlet: outletId,
-    p_order_type: orderType,
-    p_items: items,
-    p_idempotency_key: idempotencyKey,
-    p_table_id: options.tableId ?? null,
-    p_customer_id: options.customerId ?? null,
-    p_note: options.note ?? null,
-  });
+  try {
+    const { data, error } = await supabase.rpc("place_order", {
+      p_outlet: outletId,
+      p_order_type: orderType,
+      p_items: items,
+      p_idempotency_key: idempotencyKey,
+      p_table_id: options.tableId ?? null,
+      p_customer_id: options.customerId ?? null,
+      p_note: options.note ?? null,
+    });
 
-  if (error) throw new OrderError(error.message, idempotencyKey);
-  return data as PlaceOrderResult;
+    if (error) throw new OrderError(error.message, idempotencyKey);
+    return data as PlaceOrderResult;
+  } catch (err) {
+    if (err instanceof OrderError) throw err;
+    throw new OrderError((err as Error).message, idempotencyKey);
+  }
 }
 
 /** Adds more items to an order that hasn't been settled/voided yet — the

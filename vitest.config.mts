@@ -10,4 +10,10 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "."),
     },
   },
+  test: {
+    // e2e/*.spec.ts are Playwright specs (Part 20, npm run test:e2e) —
+    // Vitest's default include pattern otherwise picks them up too and
+    // fails trying to run Playwright's test()/describe() through Vitest.
+    exclude: ["node_modules/**", "e2e/**"],
+  },
 });

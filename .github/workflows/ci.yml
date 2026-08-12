@@ -1,0 +1,46 @@
+name: CI
+
+# Part 20 §3: lint, typecheck, unit tests on every PR. Migrations are
+# never applied by hand (docs/deployment.md) — only ever by the
+# staging/production workflows below, which only ever run from CI.
+
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cupshup
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: cupshup/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          # Placeholder values — this build only needs to compile
+          # successfully, it never actually talks to Supabase in CI.
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
+          NEXT_PUBLIC_SUPABASE_OUTLET_ID: 00000000-0000-0000-0000-000000000001
+          SUPABASE_SERVICE_ROLE_KEY: placeholder

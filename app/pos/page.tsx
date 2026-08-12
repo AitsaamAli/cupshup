@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useStaffSession } from "@/lib/auth";
 import { useBusinessDay } from "@/lib/business-day";
 import { useMenu, type MenuItem, type Modifier } from "@/lib/menu";
-import { usePlaceOrder, addItemsToOrder, type OrderType, type CartItem } from "@/lib/orders";
+import { addItemsToOrder, type OrderType, type CartItem } from "@/lib/orders";
+import { useOfflineAwarePlaceOrder } from "@/lib/offline-orders";
+import { useOnlineStatus } from "@/lib/offline-network";
 import { useShortcut } from "@/lib/shortcuts";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
@@ -20,6 +22,7 @@ import { ModifierSheet, type SelectedModifier } from "@/components/pos/modifier-
 import { CartPanel, type CartLine, type ExistingLine } from "@/components/pos/cart-panel";
 import { VoidOrderDialog } from "@/components/pos/void-order-dialog";
 import { PendingPrintsIndicator } from "@/components/print/pending-prints-indicator";
+import { OfflineIndicator } from "@/components/pos/offline-indicator";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 
@@ -36,10 +39,19 @@ const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 export default function PosPage() {
   const router = useRouter();
   const { staff, loading: staffLoading } = useStaffSession("pos");
-  const { day, loading: dayLoading } = useBusinessDay(OUTLET_ID);
-  const { categories, items, currentPrices, modifierGroups, modifiers, itemModifierGroups, loading: menuLoading } =
-    useMenu(OUTLET_ID);
-  const { state: placeState, submit: submitOrder, retry: retryOrder } = usePlaceOrder(OUTLET_ID);
+  const { day, loading: dayLoading, offline: dayOffline } = useBusinessDay(OUTLET_ID);
+  const {
+    categories,
+    items,
+    currentPrices,
+    modifierGroups,
+    modifiers,
+    itemModifierGroups,
+    loading: menuLoading,
+    offline: menuOffline,
+  } = useMenu(OUTLET_ID);
+  const { state: placeState, submit: submitOrder, retry: retryOrder } = useOfflineAwarePlaceOrder(OUTLET_ID);
+  const online = useOnlineStatus();
   const { showToast } = useToast();
 
   // ---- Order context: type, table, delivery customer ------------------
@@ -181,6 +193,15 @@ export default function PosPage() {
 
     try {
       if (openOrderId) {
+        // add_items_to_order() has no idempotency-key protection (see
+        // tests/orders.test.ts's own note on it) — queuing it offline
+        // risks a genuine duplicate on retry, so this is the one action
+        // in Part 20's offline design that's deliberately NOT queued.
+        // See docs/offline-mode.md for the reasoning.
+        if (!online) {
+          showToast("No connection — can't add to an open table order offline. Wait to reconnect.", "error");
+          return;
+        }
         setSendingExisting(true);
         await addItemsToOrder(openOrderId, orderItems);
         setLastSentCart(cart);
@@ -202,6 +223,19 @@ export default function PosPage() {
                 note: orderType === "delivery" ? `Deliver to: ${deliveryAddress}` : undefined,
               });
         if (!result) return;
+
+        if (result.queued) {
+          // No order id yet — it doesn't exist on the server until
+          // synced. Stays on this screen (can't settle/print a receipt
+          // for an order that isn't real yet) but clears the cart so
+          // the cashier can move on to the next customer.
+          setLastSentCart(cart);
+          setCart([]);
+          showToast("Offline — order queued, will send once reconnected", "error");
+          if (orderType === "dine_in") resetToStart();
+          return;
+        }
+
         setOpenOrderId(result.order.id);
         setLastSentCart(cart);
         setCart([]);
@@ -298,9 +332,16 @@ export default function PosPage() {
         </span>
         <span>Cashier: {staff?.name}</span>
         <span className="tabular-nums">{day.business_date}</span>
-        <span className="text-brand-400">Day: OPEN</span>
+        <span className="text-brand-400">Day: OPEN{dayOffline ? " (cached)" : ""}</span>
+        <OfflineIndicator outletId={OUTLET_ID} />
         <PendingPrintsIndicator />
       </header>
+      {menuOffline && (
+        <p className="border-b border-amber-900/40 bg-amber-950/40 px-4 py-1 text-xs text-amber-300">
+          Offline — showing the last synced menu. 86&apos;d items and price changes made elsewhere won&apos;t show
+          until reconnected.
+        </p>
+      )}
 
       {!inCartBuilding ? (
         orderType === null ? (

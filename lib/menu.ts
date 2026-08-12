@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { castRows } from "@/lib/supabase/rows";
+import { offlineDb } from "@/lib/offline-db";
+import { isNetworkError } from "@/lib/offline-network";
 
 export interface MenuCategory {
   id: string;
@@ -75,21 +77,48 @@ const EMPTY: MenuData = {
  * refresh needed. This is the hook POS (Part 16) and KDS (Part 17) are
  * meant to consume; it's built now because Part 08 is the part that owns
  * the menu data shape.
+ *
+ * Part 20: a fetch that fails outright (no internet at all) used to
+ * mean every one of these queries quietly resolved with `data: null`,
+ * castRows() turned that into `[]`, and the item grid rendered as if
+ * this outlet genuinely had zero menu items — a real, silent bug, not
+ * a hypothetical one. reload() now catches that specific failure,
+ * serves the last successfully-cached menu from IndexedDB instead, and
+ * exposes `offline: true` so the UI can say so rather than pretend
+ * nothing's wrong.
  */
 export function useMenu(outletId: string) {
   const [data, setData] = useState<MenuData>(EMPTY);
   const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
 
   const reload = useCallback(async () => {
     const supabase = createClient();
 
-    const { data: categoriesRaw } = await supabase
+    // Checked directly against the FIRST query's own `error` field —
+    // deliberately not a try/catch. Verified empirically (not assumed):
+    // supabase-js does not throw on a dead connection, it resolves
+    // normally with `{ data: null, error: { message: "TypeError: fetch
+    // failed" } }`, same as any other rejected query. A network failure
+    // is checked once, on this first query, as a stand-in for "are we
+    // online at all" — if it fails, the rest would too; if it succeeds,
+    // the network is up and the remaining four are trusted to behave
+    // normally.
+    const categoriesRes = await supabase
       .from("menu_categories")
       .select("*")
       .eq("outlet_id", outletId)
       .order("sort_order");
-    const categories = castRows<MenuCategory>(categoriesRaw);
 
+    if (categoriesRes.error && isNetworkError(categoriesRes.error)) {
+      const cached = await offlineDb.menuCache.get(outletId);
+      if (cached) setData(cached);
+      setOffline(true);
+      setLoading(false);
+      return;
+    }
+
+    const categories = castRows<MenuCategory>(categoriesRes.data);
     const categoryIds = categories.map((c) => c.id);
 
     const [itemsRes, pricesRes, groupsRes, modifiersRes, itemGroupsRes] = await Promise.all([
@@ -112,15 +141,18 @@ export function useMenu(outletId: string) {
       (itemModifierGroups[row.menu_item_id] ??= []).push(row.group_id);
     });
 
-    setData({
+    const fresh: MenuData = {
       categories,
       items: castRows<MenuItem>(itemsRes.data),
       currentPrices,
       modifierGroups: castRows<ModifierGroup>(groupsRes.data),
       modifiers: castRows<Modifier>(modifiersRes.data),
       itemModifierGroups,
-    });
+    };
+    setData(fresh);
+    setOffline(false);
     setLoading(false);
+    await offlineDb.menuCache.put({ outletId, ...fresh, cachedAt: new Date().toISOString() });
   }, [outletId]);
 
   useEffect(() => {
@@ -144,5 +176,5 @@ export function useMenu(outletId: string) {
     };
   }, [outletId, reload]);
 
-  return { ...data, loading, reload };
+  return { ...data, loading, offline, reload };
 }

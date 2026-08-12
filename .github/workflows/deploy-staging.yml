@@ -1,0 +1,47 @@
+name: Deploy — staging
+
+# Part 20 §3: "migrations sirf CI se, haath se kabhi nahi." Pushing to
+# `staging` runs migrations against the STAGING Supabase project (never
+# production — a different project, different secrets) and deploys the
+# app to Vercel's staging environment.
+#
+# Requires these repo secrets (Settings -> Secrets and variables ->
+# Actions), none of which exist yet in this environment — see
+# docs/deployment.md for how to obtain each one:
+#   STAGING_SUPABASE_DB_URL, STAGING_SUPABASE_PROJECT_REF,
+#   SUPABASE_ACCESS_TOKEN, VERCEL_TOKEN, VERCEL_ORG_ID,
+#   VERCEL_PROJECT_ID
+
+on:
+  push:
+    branches: [staging]
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cupshup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Push migrations to staging
+        run: supabase db push --db-url "${{ secrets.STAGING_SUPABASE_DB_URL }}"
+
+  deploy:
+    needs: migrate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cupshup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --global vercel
+      - run: vercel pull --yes --environment=preview --token="${{ secrets.VERCEL_TOKEN }}"
+      - run: vercel build --token="${{ secrets.VERCEL_TOKEN }}"
+      - run: vercel deploy --prebuilt --token="${{ secrets.VERCEL_TOKEN }}"

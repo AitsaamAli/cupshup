@@ -98,6 +98,16 @@ export function usePraReconcile(outletId: string) {
         } catch {
           // The route already recorded the failure and rescheduled it —
           // nothing more to do here than move on to the next row.
+          // Part 20's own alert: a PRA submission stuck past 5 attempts
+          // (~30+ minutes of backoff, nextRetryDelayMs above) is no
+          // longer "will sync momentarily" — someone should actually
+          // look at it. Sentry.captureMessage() is a no-op until
+          // NEXT_PUBLIC_SENTRY_DSN is set (instrumentation-client.ts).
+          if (row.attempts >= 5) {
+            import("@sentry/nextjs").then(({ captureMessage }) =>
+              captureMessage(`PRA submission stuck: order ${row.order_id}, ${row.attempts} attempts`, "warning")
+            );
+          }
         }
       }
       await reload();

@@ -1,0 +1,12 @@
+{
+  "name": "Cup Shup POS",
+  "short_name": "Cup Shup",
+  "description": "Cup Shup — Johar Town, Lahore. Point of sale, kitchen display, and reporting.",
+  "start_url": "/pos",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

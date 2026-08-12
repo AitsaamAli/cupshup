@@ -59,7 +59,13 @@ export const config = {
      * - Next.js internals (_next/static, _next/image)
      * - favicon.ico
      * - static asset files (svg, png, jpg, jpeg, gif, webp)
+     * - sw.js / manifest.json (Part 20) — these must be servable with
+     *   no session at all (a service worker registers itself before
+     *   any login happens); without this exclusion the middleware was
+     *   redirecting an unauthenticated /sw.js request to /login,
+     *   handing the browser an HTML page where it expected JavaScript
+     *   and silently breaking registration.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

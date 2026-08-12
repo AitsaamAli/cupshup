@@ -4,7 +4,7 @@ Every database change lives here as a numbered SQL file, committed to git.
 **No table is ever created by hand in the Supabase dashboard** — that's how
 staging and production silently drift apart.
 
-> ✅ **Live-verified 2026-08-12.** All 31 files below have actually been
+> ✅ **Live-verified 2026-08-12.** All 33 files below have actually been
 > pushed to and applied against the real linked project (via
 > `supabase db push --db-url ...`), not just reviewed on paper. 29/29
 > tables have RLS enabled, all core functions exist, the seeded data
@@ -148,6 +148,19 @@ staging and production silently drift apart.
   `enqueue_pra_submission()`, `record_pra_result()`,
   `record_pra_failure()` (exponential backoff computed in SQL, capped at
   60 minutes).
+- `0031_pgtap_extension.sql` — **Part 20.** Enables pgTAP
+  (`supabase/tests/database/*.sql`), installed into the `extensions`
+  schema (Supabase's own convention, alongside `pgcrypto`).
+- `0032_idempotency_bugfix.sql` — **Part 20.** A real bug, found by
+  actually running `supabase/tests/database/idempotency.sql` live:
+  `place_order()`'s duplicate-order guard (`if v_existing is not null`)
+  never actually matched a found row, since Postgres's `ROW IS NOT NULL`
+  requires every column non-null and a real order always has some that
+  aren't. Confirmed broken, then confirmed fixed, both against the live
+  database, before writing this migration — full story in its own
+  comment and `docs/testing-strategy.md` §3. Also applies the same fix
+  to `log_staff_logout()` (0002_auth_functions.sql), the only other
+  place the same pattern appeared.
 
 `0001`, `0005`, and `0006` were copied from the project's pre-written
 reference SQL at the repo root, per each part's own "reference SQL ready"

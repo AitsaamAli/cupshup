@@ -1,0 +1,44 @@
+name: Deploy — production
+
+# Part 20 §3. Same shape as deploy-staging.yml, pointed at the
+# PRODUCTION Supabase project and Vercel's production environment.
+# Deliberately only ever triggered by a push to `main` — never manually
+# dispatched — so "what's in main" and "what's live" can never drift
+# apart from a one-off manual run.
+#
+# Requires: PRODUCTION_SUPABASE_DB_URL, SUPABASE_ACCESS_TOKEN,
+# VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID (production project).
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cupshup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Push migrations to production
+        run: supabase db push --db-url "${{ secrets.PRODUCTION_SUPABASE_DB_URL }}"
+
+  deploy:
+    needs: migrate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cupshup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --global vercel
+      - run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+      - run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+      - run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"

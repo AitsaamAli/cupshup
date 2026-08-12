@@ -78,6 +78,21 @@ Run with `npm test` (single run) or `npm run test:watch` (Vitest watch mode).
 - `print-queue.test.ts` — Part 19's local print-retry queue's pure list
   operations (`withNewJob`/`withoutJob`/`withFailedAttempt`), independent
   of `localStorage`.
+- `offline-network.test.ts` — Part 20's `isNetworkError()`: browser
+  offline, every browser's fetch-failure wording, and — critically —
+  that a real server rejection ("DAY: closed") is never mistaken for a
+  connectivity problem.
+- `offline-orders.test.ts` — Part 20's `classifySyncAttempt()`: the
+  three-way split (synced/offline/rejected) the local order queue's
+  sync loop depends on to know when to stop retrying vs. give up
+  gracefully vs. keep going.
+
+Database-level tests live in `supabase/tests/database/` (pgTAP) — see
+that directory's own README. They found and this session fixed a real
+bug in `place_order()`'s idempotency check
+(`supabase/migrations/0032_idempotency_bugfix.sql`) that no Vitest
+mock could have caught, since it only manifests against a real
+Postgres row's actual NULL columns.
 
 Money math (`lib/money.ts`), business-date logic (`lib/business-date.ts`),
 and — once built — the order/payment RPC functions are the
