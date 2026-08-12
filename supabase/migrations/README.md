@@ -4,13 +4,15 @@ Every database change lives here as a numbered SQL file, committed to git.
 **No table is ever created by hand in the Supabase dashboard** — that's how
 staging and production silently drift apart.
 
-> ✅ **Live-verified 2026-08-12.** All 20 files below have actually been
+> ✅ **Live-verified 2026-08-12.** All 23 files below have actually been
 > pushed to and applied against the real linked project (via
 > `supabase db push --db-url ...`), not just reviewed on paper. 29/29
 > tables have RLS enabled, all core functions exist, the seeded data
-> counts match expectations, and `business_date_of()` / `tax_rate_bp()`
-> were queried live and returned the correct values — see "Live
-> verification" below for the exact checks run.
+> counts match expectations, `business_date_of()` / `tax_rate_bp()` were
+> queried live and returned the correct values, and the expense
+> amortization view was tested against a real 31-day row (which caught
+> and fixed a genuine 9-paisa rounding bug) — see "Live verification"
+> below and `docs/expenses.md` §3 for the details.
 
 - `0001_schema.sql` — **Part 03.** Core schema: 29 tables, 10 enums, and the
   `ingredient_stock` view.
@@ -73,6 +75,19 @@ staging and production silently drift apart.
   `record_cash_movement()` (original — per-cashier shifts aren't in the
   reference file, which only ever creates one shift per day). Also adds
   `expenses.shift_id` (nullable) — see `docs/business-day-and-shifts.md`.
+- `0020_expenses_functions.sql` — **Part 14.** `record_expense()`
+  (enforces the Rs 5,000/Rs 25,000 approval thresholds, sets the
+  `shift_id` Part 13 added), `approve_expense()`, `update_expense()`,
+  `delete_expense()` — original to this project; revokes the direct
+  insert/update/delete grants the reference RLS file left open for this
+  table, since none of them actually enforced the approval threshold.
+- `0021_expense_amortization_view.sql` — **Part 14.**
+  `daily_expenses_amortized` — `security_invoker = true`, and a
+  last-day-absorbs-the-remainder rounding fix found by testing it
+  against a real 31-day row (see `docs/expenses.md` §3).
+- `0022_expense_receipt_storage.sql` — **Part 14.** `expense-receipts`
+  Storage bucket — private, supervisor+ (matches who can record an
+  expense at all).
 
 `0001`, `0005`, and `0006` were copied from the project's pre-written
 reference SQL at the repo root, per each part's own "reference SQL ready"

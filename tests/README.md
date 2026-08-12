@@ -27,6 +27,11 @@ Run with `npm test` (single run) or `npm run test:watch` (Vitest watch mode).
   and `close_business_day()`'s per-day calculations), plus every new
   RPC's call shape (`openBusinessDay`, `closeBusinessDay`, `openShift`,
   `closeShift`, `recordCashMovement`).
+- `expenses.test.ts` — Part 14's approval-threshold table
+  (`requiredApprovalRole()`), the amortization formula including the
+  last-day rounding fix (`previewAmortizedDailyAmount()` — verified
+  against both the brief's 30-day round number and the real 31-day case
+  that exposed the bug), and the report-summary helpers.
 
 Money math (`lib/money.ts`), business-date logic (`lib/business-date.ts`),
 and — once built — the order/payment RPC functions are the
