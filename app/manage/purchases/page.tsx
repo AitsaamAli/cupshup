@@ -121,7 +121,7 @@ export default function PurchasesPage() {
       </header>
 
       {canReceive && (
-        <section className="mb-8 rounded-xl border border-neutral-800 p-4">
+        <section className="mb-8 rounded-md border border-neutral-800 p-4">
           <h2 className="mb-3 font-medium">Receive delivery</h2>
           <div className="mb-3 grid grid-cols-3 gap-3">
             <label className="block">
@@ -243,7 +243,7 @@ export default function PurchasesPage() {
           <button
             onClick={submitGrn}
             disabled={saving}
-            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
+            className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Record delivery"}
           </button>
@@ -343,7 +343,7 @@ function ReturnDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-5 text-white">
+      <div className="w-full max-w-sm rounded-md border border-neutral-800 bg-neutral-900 p-5 text-white">
         <h3 className="mb-4 font-medium">Return goods — invoice {purchase.invoice_ref ?? purchase.id.slice(0, 8)}</h3>
         <div className="space-y-3">
           <label className="block">
@@ -367,13 +367,13 @@ function ReturnDialog({
           </label>
           {error && <p className="text-sm text-red-400">{error}</p>}
           <div className="flex justify-end gap-2 pt-2">
-            <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-neutral-400">
+            <button onClick={onClose} className="rounded-md px-4 py-2 text-sm text-neutral-400">
               Cancel
             </button>
             <button
               onClick={submit}
               disabled={saving}
-              className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
+              className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
             >
               {saving ? "Saving…" : "Confirm return"}
             </button>

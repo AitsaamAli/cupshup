@@ -213,7 +213,7 @@ export default function SettlePage() {
         </div>
 
         {splits.map((s, i) => (
-          <div key={i} className="mb-2 grid grid-cols-4 items-end gap-2 rounded-lg border border-neutral-800 p-3">
+          <div key={i} className="mb-2 grid grid-cols-4 items-end gap-2 rounded-md border border-neutral-800 p-3">
             <label className="block">
               <span className="mb-1 block text-xs text-neutral-400">Method</span>
               <select
@@ -283,13 +283,13 @@ export default function SettlePage() {
         <button
           onClick={submit}
           disabled={submitting || remainingPaisa !== 0}
-          className="flex-1 rounded-xl bg-white py-3 font-medium text-neutral-950 disabled:opacity-40"
+          className="flex-1 rounded-md bg-white py-3 font-medium text-neutral-950 disabled:opacity-40"
         >
           {submitting ? "Settling…" : "Settle"}
         </button>
         <button
           onClick={() => setShowVoid(true)}
-          className="rounded-xl border border-red-500/50 px-4 py-3 text-sm text-red-400"
+          className="rounded-md border border-red-500/50 px-4 py-3 text-sm text-red-400"
         >
           Void order
         </button>
@@ -297,7 +297,7 @@ export default function SettlePage() {
 
       {showVoid && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+          <div className="w-full max-w-sm rounded-md border border-neutral-800 bg-neutral-900 p-5">
             <h3 className="mb-3 font-medium">Void order #{order.order_no}</h3>
             <label className="mb-3 block">
               <span className="mb-1 block text-xs text-neutral-400">Reason</span>
@@ -320,7 +320,7 @@ export default function SettlePage() {
               <button
                 onClick={submitVoid}
                 disabled={submitting}
-                className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                className="rounded-md bg-red-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
                 {submitting ? "Voiding…" : "Confirm void"}
               </button>

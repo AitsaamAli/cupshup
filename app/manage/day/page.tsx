@@ -75,7 +75,7 @@ export default function BusinessDayPage() {
         )
       ) : (
         <>
-          <section className="mb-6 rounded-xl border border-neutral-800 p-4">
+          <section className="mb-6 rounded-md border border-neutral-800 p-4">
             <p className="text-sm text-neutral-400">
               Business day: <span className="text-white">{day.business_date}</span> — status:{" "}
               <span className="text-emerald-400">{day.status}</span>
@@ -137,7 +137,7 @@ function OpenDayForm({ onOpen }: { onOpen: (floatPaisa: number) => Promise<void>
   const [saving, setSaving] = useState(false);
 
   return (
-    <section className="rounded-xl border border-neutral-800 p-4">
+    <section className="rounded-md border border-neutral-800 p-4">
       <h2 className="mb-3 font-medium">Open Business Day</h2>
       <div className="flex items-end gap-3">
         <label className="block">
@@ -157,7 +157,7 @@ function OpenDayForm({ onOpen }: { onOpen: (floatPaisa: number) => Promise<void>
             setSaving(false);
           }}
           disabled={saving}
-          className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
+          className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
         >
           {saving ? "Opening…" : "Open day"}
         </button>
@@ -171,7 +171,7 @@ function OpenShiftForm({ onOpen }: { onOpen: (floatPaisa: number) => Promise<voi
   const [saving, setSaving] = useState(false);
 
   return (
-    <section className="mb-6 rounded-xl border border-neutral-800 p-4">
+    <section className="mb-6 rounded-md border border-neutral-800 p-4">
       <h2 className="mb-3 font-medium">Open my shift</h2>
       <div className="flex items-end gap-3">
         <label className="block">
@@ -191,7 +191,7 @@ function OpenShiftForm({ onOpen }: { onOpen: (floatPaisa: number) => Promise<voi
             setSaving(false);
           }}
           disabled={saving}
-          className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
+          className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
         >
           {saving ? "Opening…" : "Open my shift"}
         </button>
@@ -253,7 +253,7 @@ function ShiftRow({
   }
 
   return (
-    <li className="rounded-xl border border-neutral-800 p-4">
+    <li className="rounded-md border border-neutral-800 p-4">
       <div className="mb-2 flex items-center justify-between">
         <p className="font-medium">
           {cashierName} {isMine && <span className="text-xs text-neutral-500">(you)</span>}
@@ -300,7 +300,7 @@ function ShiftRow({
             onChange={(e) => setMovementAmount(e.target.value)}
             className="input w-24"
           />
-          <button onClick={doMovement} disabled={busy} className="rounded-lg bg-neutral-800 px-3 py-2 text-xs">
+          <button onClick={doMovement} disabled={busy} className="rounded-md bg-neutral-800 px-3 py-2 text-xs">
             Record
           </button>
 
@@ -317,7 +317,7 @@ function ShiftRow({
           <button
             onClick={doClose}
             disabled={busy || !countedRupees}
-            className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-neutral-950"
+            className="rounded-md bg-white px-3 py-2 text-xs font-medium text-neutral-950"
           >
             Close shift
           </button>
@@ -332,7 +332,7 @@ function CloseDayForm({ onClose }: { onClose: (countedPaisa: number) => Promise<
   const [saving, setSaving] = useState(false);
 
   return (
-    <section className="rounded-xl border border-red-500/40 p-4">
+    <section className="rounded-md border border-red-500/40 p-4">
       <h2 className="mb-1 font-medium">Close Business Day</h2>
       <p className="mb-3 text-xs text-neutral-500">
         Locks the day permanently — no more orders, no reopening. Any still-open shifts are closed
@@ -356,7 +356,7 @@ function CloseDayForm({ onClose }: { onClose: (countedPaisa: number) => Promise<
             setSaving(false);
           }}
           disabled={saving || !countedRupees}
-          className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-md bg-red-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {saving ? "Closing…" : "Close day"}
         </button>
@@ -384,7 +384,7 @@ function ClosingReport({ snapshot }: { snapshot: ClosingSnapshot }) {
   ];
 
   return (
-    <section className="mt-6 rounded-xl border border-neutral-800 p-4">
+    <section className="mt-6 rounded-md border border-neutral-800 p-4">
       <h2 className="mb-3 font-medium">Closing Report</h2>
       <table className="w-full text-left text-sm">
         <tbody>

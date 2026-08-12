@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { defaultRouteForRole, type StaffRole } from "@/lib/auth";
+import { NumericKeypad, KeypadDots } from "@/components/ui/NumericKeypad";
+import { Button } from "@/components/ui/Button";
 
 /**
  * Staff PIN login. Two steps, both touch-friendly for a shared tablet:
@@ -170,7 +172,7 @@ function StaffGrid({
         <button
           key={person.id}
           onClick={() => onSelect(person)}
-          className="flex flex-col items-center justify-center rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-6 text-center transition hover:border-neutral-500 active:scale-95"
+          className="flex flex-col items-center justify-center rounded-md border border-neutral-700 bg-neutral-900 px-4 py-6 text-center transition hover:border-neutral-500 active:scale-95"
         >
           <span className="text-lg font-medium">{person.name}</span>
           <span className="mt-1 text-sm text-neutral-400">{ROLE_LABEL[person.role]}</span>
@@ -199,8 +201,6 @@ function PinPad({
   onSubmit: () => void;
   onBack: () => void;
 }) {
-  const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"];
-
   return (
     <div className="flex w-full max-w-xs flex-col items-center">
       <button onClick={onBack} className="mb-4 self-start text-sm text-neutral-400 hover:text-white">
@@ -209,44 +209,22 @@ function PinPad({
 
       <p className="mb-4 text-lg font-medium">{person.name}</p>
 
-      {/* PIN dots — never render the actual digits on screen */}
-      <div className="mb-4 flex gap-3" aria-label="PIN entered">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <span
-            key={i}
-            className={`h-4 w-4 rounded-full border border-neutral-500 ${
-              i < pin.length ? "bg-white" : "bg-transparent"
-            }`}
-          />
-        ))}
+      <div className="mb-4">
+        <KeypadDots length={pin.length} />
       </div>
 
       {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
 
-      <div className="grid grid-cols-3 gap-3">
-        {digits.map((d, i) =>
-          d === "" ? (
-            <div key={i} />
-          ) : (
-            <button
-              key={i}
-              disabled={submitting}
-              onClick={() => (d === "⌫" ? onBackspace() : onDigit(d))}
-              className="flex h-16 w-16 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 text-xl transition hover:border-neutral-500 active:scale-95 disabled:opacity-50"
-            >
-              {d}
-            </button>
-          )
-        )}
-      </div>
+      <NumericKeypad value={pin} disabled={submitting} onDigit={onDigit} onBackspace={onBackspace} />
 
-      <button
+      <Button
+        variant="primary"
         onClick={onSubmit}
         disabled={pin.length < 4 || submitting}
-        className="mt-6 w-full rounded-xl bg-white py-3 font-medium text-neutral-950 transition disabled:opacity-40"
+        className="mt-6 w-full py-3"
       >
         {submitting ? "Checking…" : "Enter"}
-      </button>
+      </Button>
     </div>
   );
 }

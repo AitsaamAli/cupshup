@@ -97,7 +97,7 @@ export default function StockCountPage() {
                 <button
                   onClick={() => submitCount(row.id)}
                   disabled={saving === row.id || !counts[row.id]}
-                  className="rounded-lg bg-white px-3 py-1 text-xs font-medium text-neutral-950 disabled:opacity-40"
+                  className="rounded-md bg-white px-3 py-1 text-xs font-medium text-neutral-950 disabled:opacity-40"
                 >
                   {saving === row.id ? "Saving…" : "Submit"}
                 </button>

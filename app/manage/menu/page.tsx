@@ -6,6 +6,7 @@ import { useMenu, type MenuItem } from "@/lib/menu";
 import { formatPaisa, rupeesToPaisa, type Paisa } from "@/lib/money";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMenuItemImage } from "@/lib/storage";
+import { Modal } from "@/components/ui/Modal";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 const CAN_EDIT_MENU = new Set(["owner", "manager"]);
@@ -63,7 +64,7 @@ export default function MenuManagementPage() {
       </header>
 
       {unconfirmedItems.length > 0 && (
-        <section className="mb-6 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4">
+        <section className="mb-6 rounded-md border border-amber-500/50 bg-amber-500/10 p-4">
           <h2 className="mb-2 text-sm font-semibold text-amber-300">
             Needs price confirmation ({unconfirmedItems.length})
           </h2>
@@ -72,7 +73,7 @@ export default function MenuManagementPage() {
               <li key={item.id}>
                 <button
                   onClick={() => canEditMenu && setPriceItem(item)}
-                  className="rounded-lg bg-amber-500/20 px-3 py-1 text-sm text-amber-200"
+                  className="rounded-md bg-amber-500/20 px-3 py-1 text-sm text-amber-200"
                 >
                   {item.name} — {formatPaisa((currentPrices[item.id]?.price_paisa ?? 0) as Paisa)}
                 </button>
@@ -99,7 +100,7 @@ export default function MenuManagementPage() {
             {canEditMenu && activeCategoryId && (
               <button
                 onClick={() => setEditingItem("new")}
-                className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-neutral-950"
+                className="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-neutral-950"
               >
                 + Add item
               </button>
@@ -183,7 +184,7 @@ function CategoryList({
         <div key={cat.id} className="flex items-center gap-1">
           <button
             onClick={() => onSelect(cat.id)}
-            className={`flex-1 rounded-lg px-3 py-2 text-left text-sm ${
+            className={`flex-1 rounded-md px-3 py-2 text-left text-sm ${
               cat.id === activeCategoryId
                 ? "bg-white text-neutral-950"
                 : "bg-neutral-900 text-neutral-200 hover:bg-neutral-800"
@@ -241,12 +242,12 @@ function ItemRow({
   }
 
   return (
-    <li className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
+    <li className="flex items-center gap-3 rounded-md border border-neutral-800 bg-neutral-900 p-3">
       {item.image_url ? (
         // eslint-disable-next-line @next/next/no-img-element -- menu photos are user-uploaded, arbitrary Storage URLs
-        <img src={item.image_url} alt="" className="h-12 w-12 rounded-lg object-cover" />
+        <img src={item.image_url} alt="" className="h-12 w-12 rounded-md object-cover" />
       ) : (
-        <div className="h-12 w-12 rounded-lg bg-neutral-800" />
+        <div className="h-12 w-12 rounded-md bg-neutral-800" />
       )}
 
       <div className="flex-1">
@@ -374,7 +375,7 @@ function ItemFormDialog({
           <div className="flex items-center gap-3">
             {imageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageUrl} alt="" className="h-12 w-12 rounded-lg object-cover" />
+              <img src={imageUrl} alt="" className="h-12 w-12 rounded-md object-cover" />
             )}
             <input
               type="file"
@@ -389,13 +390,13 @@ function ItemFormDialog({
         {error && <p className="text-sm text-red-400">{error}</p>}
 
         <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-neutral-400">
+          <button onClick={onClose} className="rounded-md px-4 py-2 text-sm text-neutral-400">
             Cancel
           </button>
           <button
             onClick={save}
             disabled={saving || uploading}
-            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
+            className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -465,43 +466,19 @@ function PriceDialog({
         {error && <p className="text-sm text-red-400">{error}</p>}
 
         <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-neutral-400">
+          <button onClick={onClose} className="rounded-md px-4 py-2 text-sm text-neutral-400">
             Cancel
           </button>
           <button
             onClick={save}
             disabled={saving}
-            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
+            className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Confirm price"}
           </button>
         </div>
       </div>
     </Modal>
-  );
-}
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-medium">{title}</h3>
-          <button onClick={onClose} className="text-neutral-500">
-            ✕
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
   );
 }
 

@@ -1,15 +1,42 @@
 @import "tailwindcss";
 
+/* =====================================================================
+   Cup Shup POS — Design Tokens (Part 15, "Industrial Terminal")
+   This is a tool, not a marketing page: dense, high-contrast, dark-first
+   (a kitchen under bright service lighting reads a dark UI far better
+   than a bright white one), keyboard-first. Every colour, radius, and
+   shadow decision below exists to kill the "AI-generated" tells listed
+   in 15-design-system.md — no inline hex anywhere in a component; every
+   colour comes from one of these tokens.
+   ===================================================================== */
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Brand green — primary actions ONLY. Everything else stays neutral,
+     so the one colour that means "do this" never has to compete for
+     attention. */
+  --brand-50: #effbf5;
+  --brand-100: #d7f4e4;
+  --brand-200: #afe8c9;
+  --brand-300: #7cd6a9;
+  --brand-400: #45bc85;
+  --brand-500: #22a06a;
+  --brand-600: #158257;
+  --brand-700: #12684a;
+  --brand-800: #11533c;
+  --brand-900: #0f4433;
+  --brand-950: #08271d;
+
+  /* Status colours carry their own fixed meaning everywhere in the app —
+     never repurposed for anything else. Red = void/danger. Amber =
+     waiting/needs attention. Green = ready/success (the same brand
+     green above — "ready" is a positive outcome, same family as
+     "primary action"). */
+  --status-danger: #ef4444;
+  --status-warning: #f59e0b;
+  --status-success: var(--brand-500);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,28 +46,84 @@
   }
 }
 
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+
+  --color-danger: var(--status-danger);
+  --color-warning: var(--status-warning);
+  --color-success: var(--status-success);
+
+  /* Cap Tailwind's own radius scale at the design direction's stated
+     max (4–6px). This isn't just a one-time find-replace on existing
+     markup — it means `rounded-xl`/`rounded-2xl` etc. physically CANNOT
+     render a soft 12–16px card radius in this project again, even if
+     someone reaches for the wrong class later. `rounded-full` is left
+     alone — that's a deliberate full-circle/pill shape (avatars,
+     status dots), not the "everything is a soft rounded card" tell. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
+  --radius-2xl: 6px;
+  --radius-3xl: 6px;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Minimal shared form-input style, used ahead of Part 15's real design
-   system so back-office screens (Part 08 onward) aren't unstyled browser
-   defaults in the meantime. Part 15 should replace this with proper
-   design tokens rather than build on top of it. */
+/* Respect the user's OS-level motion preference — every transition and
+   animation in the app collapses to instant. POS staff use this all
+   shift; decorative motion is friction, not delight, for them. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* A visible focus ring is not optional on a keyboard-first tool.
+   Tailwind's `outline-none` utility is never used anywhere in this
+   project for exactly this reason — this is the one global override
+   that guarantees it even if a component forgets. */
+:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+}
+
 @layer components {
+  /* Shared form-input style — every text input, select, and textarea in
+     the app uses this one class, so a token change here updates every
+     screen at once instead of needing 40 individual edits. */
   .input {
     width: 100%;
-    border-radius: 0.5rem;
+    border-radius: var(--radius-md);
     border: 1px solid #404040;
     background-color: #171717;
     padding: 0.5rem 0.75rem;
     color: white;
     font-size: 0.875rem;
+    min-height: 2.75rem; /* 44px — the minimum touch target every part of this app uses */
   }
-  .input:focus {
-    outline: 2px solid #737373;
+  .input:focus-visible {
+    outline: 2px solid var(--brand-500);
     outline-offset: 1px;
   }
 }

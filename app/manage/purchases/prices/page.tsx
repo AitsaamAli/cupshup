@@ -47,7 +47,7 @@ export default function PriceHistoryPage() {
       {alerts === null ? (
         <p className="text-neutral-400">Checking for price increases…</p>
       ) : alerts.length > 0 ? (
-        <section className="mb-6 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4">
+        <section className="mb-6 rounded-md border border-amber-500/50 bg-amber-500/10 p-4">
           <h2 className="mb-2 text-sm font-semibold text-amber-300">Rate increase alerts</h2>
           <ul className="space-y-1 text-sm text-amber-200">
             {alerts.map((a) => (
@@ -69,7 +69,7 @@ export default function PriceHistoryPage() {
             <button
               key={ing.id}
               onClick={() => setSelectedId(ing.id)}
-              className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${
+              className={`block w-full rounded-md px-3 py-2 text-left text-sm ${
                 ing.id === selectedId ? "bg-white text-neutral-950" : "bg-neutral-900 text-neutral-200"
               }`}
             >

@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { StaffRole } from "@/lib/auth";
+import { Modal } from "@/components/ui/Modal";
+import { NumericKeypad, KeypadDots } from "@/components/ui/NumericKeypad";
+import { Button } from "@/components/ui/Button";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 const APPROVER_ROLES: StaffRole[] = ["owner", "manager", "supervisor"];
@@ -27,6 +30,9 @@ interface ApprovedStaff {
  * approved action completes, the manager's session simply stays active
  * until the next idle-timeout or explicit staff switch — consistent
  * with how every other screen in this app already treats a PIN entry.
+ *
+ * Rebuilt on Part 15's shared components (Modal, NumericKeypad,
+ * KeypadDots, Button) — was hand-rolled duplicate markup before.
  */
 export function ManagerAuthDialog({
   title,
@@ -90,75 +96,46 @@ export function ManagerAuthDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-xs rounded-2xl border border-neutral-800 bg-neutral-900 p-5 text-white">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-medium">{title}</h3>
-          <button onClick={onCancel} className="text-neutral-500">
-            ✕
-          </button>
-        </div>
-
-        {!selected ? (
-          <div className="space-y-2">
-            {staffList === null && <p className="text-sm text-neutral-400">Loading…</p>}
-            {staffList?.length === 0 && (
-              <p className="text-sm text-neutral-400">No manager/owner/supervisor available.</p>
-            )}
-            {staffList?.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setSelected(s)}
-                className="w-full rounded-lg bg-neutral-800 px-3 py-2 text-left text-sm hover:bg-neutral-700"
-              >
-                {s.name} <span className="text-neutral-500">— {s.role}</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div>
-            <p className="mb-2 text-sm text-neutral-400">{selected.name}&apos;s PIN</p>
-            <div className="mb-3 flex gap-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <span
-                  key={i}
-                  className={`h-3 w-3 rounded-full border border-neutral-500 ${
-                    i < pin.length ? "bg-white" : "bg-transparent"
-                  }`}
-                />
-              ))}
-            </div>
-            {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
-            <div className="grid grid-cols-3 gap-2">
-              {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"].map((d, i) =>
-                d === "" ? (
-                  <div key={i} />
-                ) : (
-                  <button
-                    key={i}
-                    disabled={submitting}
-                    onClick={() =>
-                      d === "⌫"
-                        ? setPin((p) => p.slice(0, -1))
-                        : pin.length < 6 && setPin((p) => p + d)
-                    }
-                    className="flex h-12 w-12 items-center justify-center rounded-full border border-neutral-700 bg-neutral-800 text-lg disabled:opacity-50"
-                  >
-                    {d}
-                  </button>
-                )
-              )}
-            </div>
+    <Modal title={title} onClose={onCancel}>
+      {!selected ? (
+        <div className="space-y-2">
+          {staffList === null && <p className="text-sm text-neutral-400">Loading…</p>}
+          {staffList?.length === 0 && (
+            <p className="text-sm text-neutral-400">No manager/owner/supervisor available.</p>
+          )}
+          {staffList?.map((s) => (
             <button
-              onClick={submit}
-              disabled={pin.length < 4 || submitting}
-              className="mt-3 w-full rounded-xl bg-white py-2 font-medium text-neutral-950 disabled:opacity-40"
+              key={s.id}
+              onClick={() => setSelected(s)}
+              className="min-h-11 w-full rounded-md bg-neutral-800 px-3 py-2 text-left text-sm hover:bg-neutral-700"
             >
-              {submitting ? "Checking…" : "Approve"}
+              {s.name} <span className="text-neutral-500">— {s.role}</span>
             </button>
+          ))}
+        </div>
+      ) : (
+        <div>
+          <p className="mb-2 text-sm text-neutral-400">{selected.name}&apos;s PIN</p>
+          <div className="mb-3">
+            <KeypadDots length={pin.length} />
           </div>
-        )}
-      </div>
-    </div>
+          {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
+          <NumericKeypad
+            value={pin}
+            disabled={submitting}
+            onDigit={(d) => setPin((p) => p + d)}
+            onBackspace={() => setPin((p) => p.slice(0, -1))}
+          />
+          <Button
+            variant="primary"
+            onClick={submit}
+            disabled={pin.length < 4 || submitting}
+            className="mt-3 w-full"
+          >
+            {submitting ? "Checking…" : "Approve"}
+          </Button>
+        </div>
+      )}
+    </Modal>
   );
 }

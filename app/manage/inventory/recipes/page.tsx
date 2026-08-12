@@ -62,7 +62,7 @@ export default function RecipesPage() {
                   <button
                     key={item.id}
                     onClick={() => setSelectedItemId(item.id)}
-                    className={`block w-full rounded-lg px-2 py-1 text-left text-sm ${
+                    className={`block w-full rounded-md px-2 py-1 text-left text-sm ${
                       item.id === selectedItemId
                         ? "bg-white text-neutral-950"
                         : "text-neutral-300 hover:bg-neutral-900"
@@ -95,7 +95,7 @@ export default function RecipesPage() {
                   return (
                     <li
                       key={line.ingredient_id}
-                      className="flex items-center justify-between rounded-lg border border-neutral-800 p-2 text-sm"
+                      className="flex items-center justify-between rounded-md border border-neutral-800 p-2 text-sm"
                     >
                       <span>{ing?.name ?? line.ingredient_id}</span>
                       <span className="text-neutral-400">
@@ -188,7 +188,7 @@ function AddRecipeLine({
           className="input w-24"
         />
       </label>
-      <button onClick={add} className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-neutral-950">
+      <button onClick={add} className="rounded-md bg-white px-3 py-2 text-sm font-medium text-neutral-950">
         Add
       </button>
       {error && <p className="text-sm text-red-400">{error}</p>}

@@ -10,6 +10,7 @@ import {
   type IngredientStockRow,
 } from "@/lib/inventory";
 import { formatPaisa, rupeesToPaisa, type Paisa } from "@/lib/money";
+import { Modal } from "@/components/ui/Modal";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 const CAN_PURCHASE = new Set(["owner", "manager"]);
@@ -48,7 +49,7 @@ export default function InventoryPage() {
       </header>
 
       {lowStockCount > 0 && (
-        <p className="mb-4 rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-2 text-sm text-amber-300">
+        <p className="mb-4 rounded-md border border-amber-500/50 bg-amber-500/10 px-4 py-2 text-sm text-amber-300">
           {lowStockCount} ingredient{lowStockCount > 1 ? "s" : ""} at or below minimum stock
         </p>
       )}
@@ -67,9 +68,8 @@ export default function InventoryPage() {
           {rows.map((row) => (
             <tr key={row.id} className="border-t border-neutral-800">
               <td className="py-2 pr-4">{row.name}</td>
-              <td className={`py-2 pr-4 ${row.is_low ? "text-amber-400" : ""}`}>
+              <td className={`py-2 pr-4 tabular-nums ${row.is_low ? "text-amber-400" : ""}`}>
                 {row.current_stock} {row.unit}
-                {row.is_low && " ⚠"}
               </td>
               <td className="py-2 pr-4 text-neutral-500">
                 {row.min_stock} {row.unit}
@@ -252,30 +252,6 @@ function PurchaseDialog({
   );
 }
 
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-5 text-white">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-medium">{title}</h3>
-          <button onClick={onClose} className="text-neutral-500">
-            ✕
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
@@ -298,13 +274,13 @@ function DialogActions({
 }) {
   return (
     <div className="flex justify-end gap-2 pt-2">
-      <button onClick={onCancel} className="rounded-lg px-4 py-2 text-sm text-neutral-400">
+      <button onClick={onCancel} className="rounded-md px-4 py-2 text-sm text-neutral-400">
         Cancel
       </button>
       <button
         onClick={onConfirm}
         disabled={saving}
-        className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
+        className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
       >
         {saving ? "Saving…" : label}
       </button>
