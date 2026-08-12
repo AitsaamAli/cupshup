@@ -16,9 +16,28 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Request:  POST { staffId: string, pin: string }
  * Response: { email, tokenHash, staff: { id, name, role } }
  *           — the browser then calls supabase.auth.verifyOtp({ type:
- *             'magiclink', email, token_hash: tokenHash }) with the
+ *             'magiclink', token_hash: tokenHash }) — token_hash and
+ *             type ONLY, never email alongside it (verified live: GoTrue
+ *             rejects the call outright if both are given) — with the
  *             public anon-key client to finish signing in.
  */
+
+/** Admin API has no direct "get user by email" — paginate listUsers()
+ * and match. Only reached on the rare "already registered" recovery
+ * path below, and this project's realistic staff count per outlet
+ * (dozens, not thousands) makes that a non-issue. */
+async function findUserByEmail(admin: ReturnType<typeof createAdminClient>, email: string) {
+  let page = 1;
+  for (;;) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error || !data || data.users.length === 0) return null;
+    const match = data.users.find((u) => u.email === email);
+    if (match) return match;
+    if (data.users.length < 200) return null; // last page
+    page += 1;
+  }
+}
+
 export async function POST(request: Request) {
   let body: { staffId?: string; pin?: string };
   try {
@@ -65,13 +84,37 @@ export async function POST(request: Request) {
       password: randomUUID() + randomUUID(),
       user_metadata: { staff_id: v.staff_id, name: v.name },
     });
+
     if (createError || !created?.user) {
-      return NextResponse.json(
-        { error: "Could not provision a login for this staff member" },
-        { status: 500 }
-      );
+      // Real failure mode, found live: if a PREVIOUS first-login attempt
+      // created the auth.users row but crashed/errored before the
+      // `staff.user_id` link below ever ran (a network blip, a timeout —
+      // anything between the two calls), staff.user_id stays null
+      // forever, so every future login re-attempts createUser() against
+      // the same deterministic email and fails with "already
+      // registered" every single time — a permanent lockout with no
+      // self-service recovery. Rather than fail here, look the existing
+      // user up by that same deterministic email and link it instead of
+      // creating a second one.
+      const alreadyExists = createError?.message?.toLowerCase().includes("already been registered");
+      if (!alreadyExists) {
+        return NextResponse.json(
+          { error: "Could not provision a login for this staff member" },
+          { status: 500 }
+        );
+      }
+
+      const existing = await findUserByEmail(admin, email);
+      if (!existing) {
+        return NextResponse.json(
+          { error: "Could not provision a login for this staff member" },
+          { status: 500 }
+        );
+      }
+      userId = existing.id;
+    } else {
+      userId = created.user.id;
     }
-    userId = created.user.id;
 
     const { error: linkError } = await admin
       .from("staff")
