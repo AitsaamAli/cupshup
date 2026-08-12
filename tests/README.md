@@ -47,6 +47,22 @@ Run with `npm test` (single run) or `npm run test:watch` (Vitest watch mode).
   (`advance_order_item_status`/`mark_ticket_items_ready`/`recall_order`)
   are verified live against the real project — see
   `supabase/migrations/README.md`.
+- `reports.test.ts` — Part 18: `classifyMenuItems()` (all four Menu
+  Engineering Matrix quadrants, aggregation across multiple
+  business_date rows for the same item, the zero-revenue edge case),
+  every flag function (`flagCashVariance`, `flagStockVariance`,
+  `flagVoidValue`, `flagLowMarginItems`, `flagIngredientCostIncrease`,
+  `flagNetLoss` — including the exact "a full month's rent posted on one
+  day" scenario the old system got wrong every month), `labourCostPercent()`,
+  `sumBy()`, and `aggregateHourly()`.
+- `date-range.test.ts` — Part 18's `todayIso()`/`daysAgoIso()`/
+  `startOfMonthIso()`, specifically proving they read the LOCAL calendar
+  date rather than `toISOString()`'s UTC date (which would show
+  yesterday for the first five hours after local midnight on a UTC+5
+  clock — the same class of bug `business_date_of()`, Part 06, exists to
+  prevent, just for a date-picker default instead of an order timestamp).
+- `export.test.ts` — Part 18's `toCsv()`: header + row order, comma/quote/
+  newline escaping, and null/undefined rendering as an empty field.
 
 Money math (`lib/money.ts`), business-date logic (`lib/business-date.ts`),
 and — once built — the order/payment RPC functions are the

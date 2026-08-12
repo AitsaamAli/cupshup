@@ -4,17 +4,20 @@ Every database change lives here as a numbered SQL file, committed to git.
 **No table is ever created by hand in the Supabase dashboard** — that's how
 staging and production silently drift apart.
 
-> ✅ **Live-verified 2026-08-12.** All 26 files below have actually been
+> ✅ **Live-verified 2026-08-12.** All 29 files below have actually been
 > pushed to and applied against the real linked project (via
 > `supabase db push --db-url ...`), not just reviewed on paper. 29/29
 > tables have RLS enabled, all core functions exist, the seeded data
 > counts match expectations, `business_date_of()` / `tax_rate_bp()` were
 > queried live and returned the correct values, the expense
 > amortization view was tested against a real 31-day row (which caught
-> and fixed a genuine 9-paisa rounding bug), and all 21 real menu
-> categories were confirmed backfilled to a `station` with none left
-> null — see "Live verification" below, `docs/expenses.md` §3, and
-> `docs/kitchen-display.md` for the details.
+> and fixed a genuine 9-paisa rounding bug), all 21 real menu categories
+> were confirmed backfilled to a `station` with none left null, and
+> every Part 18 owner-only view was confirmed to return zero rows
+> outside an authenticated session, proving the `has_role('owner')` gate
+> is real rather than theoretical — see "Live verification" below,
+> `docs/expenses.md` §3, `docs/kitchen-display.md`, and
+> `docs/reports-and-pl.md` for the details.
 
 - `0001_schema.sql` — **Part 03.** Core schema: 29 tables, 10 enums, and the
   `ingredient_stock` view.
@@ -109,6 +112,28 @@ staging and production silently drift apart.
   before RLS is ever consulted — these three `SECURITY DEFINER`
   functions are the real write path that policy's intent needed. See
   `docs/kitchen-display.md` §2.
+- `0026_reports_schema.sql` — **Part 18.** `expense_categories.
+  is_labour_cost` (explicit flag, backfilled for 'Salaries'/'Daily
+  Wages' — not a fragile name match at query time); `invoice_prints` —
+  a reprint audit trail with nothing to write to it yet, forward-declared
+  for Part 19's actual printing feature the same way Part 09 built
+  `useIncomingOrders()` before Part 17 existed.
+- `0027_reports_functions.sql` — **Part 18.** `record_invoice_print()` —
+  original to this project, any staff member may call it (printing a
+  bill isn't manager-only), the resulting report is owner-only.
+- `0028_reports_views.sql` — **Part 18.** Resolves the last forward
+  reference tracked in this file: `daily_pl` and `product_performance`
+  (the two pieces of the full reference file left since Part 11 — see
+  "Ordering dependency" below), plus nine original views
+  (`item_revenue_daily`, `category_revenue_daily`, `hourly_sales`,
+  `payment_mix_daily`, `tax_summary_daily`, `cash_variance_by_cashier`,
+  `void_analysis_by_cashier`, `reprint_summary`, `labour_cost_daily`,
+  `ingredient_cost_trend`). Owner-only views embed `and has_role
+  ('owner')` directly in their `where` clause rather than relying on
+  `grant`/`revoke` alone — see `docs/reports-and-pl.md` §2 for why the
+  reference file's own `revoke all ...; grant select ... to
+  authenticated` (still commented out below) could never have achieved
+  real owner-exclusivity by itself.
 
 `0001`, `0005`, and `0006` were copied from the project's pre-written
 reference SQL at the repo root, per each part's own "reference SQL ready"
@@ -152,8 +177,9 @@ already created, so extracting them ahead of the parts that formally
 introduce them elsewhere in the guide is safe — confirmed live, not just
 in theory.
 
-**What's still missing:** `daily_pl` and `product_performance` (Part 18)
-— the only two pieces of the full reference file left.
+**Fully resolved as of Part 18:** `daily_pl` and `product_performance`
+now exist (`0028_reports_views.sql`) — nothing left from the full
+reference file unextracted.
 
 ## A real bug found in Part 11: RLS-bypassing views
 
@@ -176,11 +202,16 @@ pushing them against the live project failed on exactly the
 forward-dependency gap documented above:
 
 1. `revoke all on daily_pl, product_performance, stock_variance ...` /
-   `grant select on daily_pl, ... to authenticated` — **still deferred.**
-   These three views don't exist until Part 18. Re-added, uncommented, in
-   a small migration once Part 18 lands — not by editing `0005_rls.sql`
-   again (it's already been applied to the live database; migrations are
-   append-only from here on, same as every other table in this project).
+   `grant select on daily_pl, ... to authenticated` — **superseded, not
+   replayed.** `stock_variance` got its own explicit handling in Part 11
+   (`0013_stock_variance_view.sql`, `security_invoker = true`, no
+   special grant needed beyond normal RLS). `daily_pl`/`product_performance`
+   arrived in Part 18 (`0028_reports_views.sql`) with a stricter, real
+   per-role gate (`has_role('owner')` embedded in the view itself) that
+   this commented-out statement could never have achieved on its own —
+   see `docs/reports-and-pl.md` §2 for why a `grant`/`revoke` to the one
+   shared `authenticated` role can't distinguish an owner from a cashier.
+   This line stays commented out permanently; nothing will ever uncomment it.
 2. The final `grant execute on function place_order, settle_order,
    void_order, open_business_day, close_business_day to authenticated` —
    **fully resolved as of Part 13.** All five functions now have their
