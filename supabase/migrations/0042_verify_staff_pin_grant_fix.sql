@@ -1,0 +1,56 @@
+-- =====================================================================
+-- Cup Shup POS — LIVE-DISCOVERED CRITICAL: verify_staff_pin() callable
+-- by anon
+-- =====================================================================
+-- Found only once real live verification became possible (Phase 4,
+-- 2026-08-14) — no amount of static review could have caught this.
+-- Every migration in this project, including 0002_auth_functions.sql's
+-- own definition of this exact function, follows the pattern:
+--
+--   revoke all on function f(...) from public;
+--   grant execute on function f(...) to <intended role>;
+--
+-- Confirmed live via a completely unauthenticated anon client
+-- (scratch-grant-check.mjs, deleted after use): calling
+-- `verify_staff_pin(p_staff_id, p_pin)` with the public anon key alone —
+-- no session, no login — reached the function's OWN business logic
+-- (`AUTH: staff not found`, a raised application exception) rather than
+-- a Postgres permission-denied error. That proves EXECUTE was never
+-- actually revoked for `anon` — `revoke ... from public` only strips the
+-- PUBLIC pseudo-role's grant; it does nothing to a direct grant Supabase
+-- appears to establish for `anon`/`authenticated` on every function
+-- created in the public schema by default.
+--
+-- For nearly every OTHER function in this codebase this is harmless in
+-- practice: they all call current_staff() internally, which returns
+-- null for an anon caller (auth.uid() is null), so the function's own
+-- "AUTH: not a staff member" check still rejects it — defense in depth
+-- held even though the grant-level lock didn't. verify_staff_pin() is
+-- the ONE function that is deliberately callable with no session yet
+-- (that's its entire purpose — checking a PIN BEFORE a session exists)
+-- and so has no such internal check protecting it. Its only intended
+-- protection was always meant to be "only service_role can call this at
+-- all" (enforced by the server route in app/api/auth/pin/route.ts using
+-- the service-role key) — and that boundary was completely open.
+--
+-- Impact: any holder of the public anon key (shipped in every browser
+-- bundle by design — not a secret) could call this function directly,
+-- for ANY staff_id, brute-forcing PINs against the real database with
+-- no session and no involvement of the intended server route at all,
+-- and on a successful guess receive that staff member's outlet_id,
+-- name, role, and user_id. The existing 5-attempts/15-minutes lockout
+-- (keyed per staff_id via audit_log) still applies and is unaffected by
+-- this fix — it was never the primary defense; "only service_role can
+-- reach this at all" was.
+--
+-- Fix: explicitly revoke from anon and authenticated too, not just
+-- public — the same explicit-role pattern already used correctly for
+-- next_invoice_no in 0036 (which is why that one was NOT independently
+-- vulnerable to this exact class, despite looking similar on paper).
+-- service_role bypasses grants entirely in Supabase, so the real
+-- app/api/auth/pin/route.ts call path (which uses the service-role
+-- client) is completely unaffected by this fix.
+-- =====================================================================
+
+revoke all on function verify_staff_pin(uuid, text) from public, anon, authenticated;
+grant execute on function verify_staff_pin(uuid, text) to service_role;
