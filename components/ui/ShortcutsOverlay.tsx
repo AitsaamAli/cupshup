@@ -2,6 +2,7 @@
 
 import { useShortcutsOverlay } from "@/lib/shortcuts";
 import { Modal } from "./Modal";
+import { KeyboardHint } from "./KeyboardHint";
 
 /**
  * The "?" overlay — Part 15. Mount this once near the root (alongside
@@ -15,14 +16,14 @@ export function ShortcutsOverlay() {
 
   return (
     <Modal title="Keyboard shortcuts" onClose={() => setOverlayOpen(false)}>
-      <ul className="space-y-2 text-sm">
+      <ul className="space-y-2 text-portal-sm">
         {[...shortcuts.values()].map((s) => (
           <li key={s.key} className="flex items-center justify-between gap-4">
-            <span className="text-neutral-300">{s.description}</span>
-            <kbd className="rounded-sm border border-neutral-700 bg-neutral-800 px-1.5 py-0.5 text-xs">{s.key}</kbd>
+            <span className="text-ink-700">{s.description}</span>
+            <KeyboardHint keys={s.key} />
           </li>
         ))}
-        {shortcuts.size === 0 && <p className="text-neutral-500">No shortcuts on this screen.</p>}
+        {shortcuts.size === 0 && <p className="text-ink-500">No shortcuts on this screen.</p>}
       </ul>
     </Modal>
   );

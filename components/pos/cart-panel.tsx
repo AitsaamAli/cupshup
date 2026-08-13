@@ -55,20 +55,22 @@ export function CartPanel({
   const cartTotal = cart.reduce((s, l) => s + l.unitPricePaisa * l.qty, 0);
 
   return (
-    <div className="flex h-full flex-col border-l border-neutral-900 p-4">
-      <h2 className="mb-3 font-medium">Order</h2>
+    <div className="flex h-full flex-col border-l border-line bg-surface p-4">
+      <h2 className="mb-3 text-terminal-base font-semibold text-ink-900">Order</h2>
 
       {pendingQty !== null && (
-        <p className="mb-2 text-xs text-amber-400">Qty ready: {pendingQty} — pick an item</p>
+        <p className="mb-2 rounded-md bg-warning/10 px-2 py-1 text-portal-xs text-warning">
+          Qty ready: {pendingQty} — pick an item
+        </p>
       )}
 
       <div className="flex-1 space-y-3 overflow-y-auto">
         {existingLines.length > 0 && (
           <div>
-            <p className="mb-1 text-xs uppercase tracking-wide text-neutral-600">Already sent</p>
+            <p className="mb-1 text-portal-2xs font-medium uppercase tracking-wide text-ink-500">Already sent</p>
             <ul className="space-y-1">
               {existingLines.map((l) => (
-                <li key={l.id} className="flex justify-between text-sm text-neutral-500">
+                <li key={l.id} className="flex justify-between text-terminal-sm text-ink-500">
                   <span>
                     {l.qty}× {l.name_snapshot}
                   </span>
@@ -81,42 +83,37 @@ export function CartPanel({
 
         {cart.length > 0 && (
           <div>
-            <p className="mb-1 text-xs uppercase tracking-wide text-neutral-600">New</p>
+            <p className="mb-1 text-portal-2xs font-medium uppercase tracking-wide text-ink-500">New</p>
             <ul className="space-y-2">
               {cart.map((line) => (
-                <li key={line.lineId} className="rounded-md border border-neutral-800 p-2">
+                <li key={line.lineId} className="rounded-md border border-line p-2">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm">{line.name}</p>
+                      <p className="text-terminal-sm text-ink-900">{line.name}</p>
                       {line.modifiers.length > 0 && (
-                        <p className="text-xs text-neutral-500">
-                          {line.modifiers.map((m) => m.name).join(", ")}
-                        </p>
+                        <p className="text-portal-xs text-ink-500">{line.modifiers.map((m) => m.name).join(", ")}</p>
                       )}
-                      {line.note && <p className="text-xs text-neutral-600">&quot;{line.note}&quot;</p>}
+                      {line.note && <p className="text-portal-xs text-ink-300">&quot;{line.note}&quot;</p>}
                     </div>
-                    <Money paisa={(line.unitPricePaisa * line.qty) as Paisa} className="text-sm" />
+                    <Money paisa={(line.unitPricePaisa * line.qty) as Paisa} className="text-terminal-sm text-ink-900" />
                   </div>
                   <div className="mt-1 flex items-center gap-2">
                     <button
                       onClick={() => onDecrement(line.lineId)}
                       aria-label={`Decrease quantity of ${line.name}`}
-                      className="flex h-7 w-7 items-center justify-center rounded-sm border border-neutral-700 text-sm"
+                      className="flex h-8 w-8 items-center justify-center rounded-sm border border-line text-terminal-sm text-ink-700 hover:bg-canvas"
                     >
                       −
                     </button>
-                    <span className="w-6 text-center text-sm tabular-nums">{line.qty}</span>
+                    <span className="w-6 text-center text-terminal-sm tabular-nums text-ink-900">{line.qty}</span>
                     <button
                       onClick={() => onIncrement(line.lineId)}
                       aria-label={`Increase quantity of ${line.name}`}
-                      className="flex h-7 w-7 items-center justify-center rounded-sm border border-neutral-700 text-sm"
+                      className="flex h-8 w-8 items-center justify-center rounded-sm border border-line text-terminal-sm text-ink-700 hover:bg-canvas"
                     >
                       +
                     </button>
-                    <button
-                      onClick={() => onRemove(line.lineId)}
-                      className="ml-auto text-xs text-red-400 underline"
-                    >
+                    <button onClick={() => onRemove(line.lineId)} className="ml-auto text-portal-xs text-danger hover:underline">
                       Remove
                     </button>
                   </div>
@@ -126,17 +123,15 @@ export function CartPanel({
           </div>
         )}
 
-        {existingLines.length === 0 && cart.length === 0 && (
-          <p className="text-sm text-neutral-500">Cart empty</p>
-        )}
+        {existingLines.length === 0 && cart.length === 0 && <p className="text-portal-sm text-ink-500">Cart empty</p>}
       </div>
 
-      <div className="mt-3 border-t border-neutral-800 pt-3">
-        <div className="mb-3 flex justify-between text-sm font-medium">
+      <div className="mt-3 border-t border-line pt-3">
+        <div className="mb-3 flex justify-between text-terminal-base font-semibold text-ink-900">
           <span>Subtotal</span>
           <Money paisa={(existingTotal + cartTotal) as Paisa} />
         </div>
-        <Button variant="primary" className="w-full" disabled={!canSend || sending} onClick={onSend}>
+        <Button variant="primary" density="terminal" className="w-full" disabled={!canSend || sending} onClick={onSend}>
           {sending ? "Sending…" : sendLabel}
         </Button>
       </div>

@@ -84,6 +84,33 @@ export function ticketMatchesStation(items: KdsOrderItem[], station: Station | n
   return ticketItemsForStation(items, station).length > 0;
 }
 
+export interface AllDayCount {
+  name: string;
+  qty: number;
+}
+
+/**
+ * "All-day counts" strip (Toast KDS benchmark) — how many of each dish
+ * are still outstanding across every visible ticket, for batch cooking
+ * ("12 Karak Chai in the queue" instead of reading it off ticket by
+ * ticket). Only counts items still actually pending/preparing — an item
+ * already `ready`/`served`/`voided` isn't outstanding work anymore.
+ * Pure and station-scoped the same way `ticketItemsForStation` is, so
+ * the strip only ever shows what THIS station still owes.
+ */
+export function allDayCounts(tickets: KdsTicket[], station: Station | null): AllDayCount[] {
+  const totals = new Map<string, number>();
+  for (const ticket of tickets) {
+    for (const item of ticketItemsForStation(ticket.items, station)) {
+      if (item.status !== "pending" && item.status !== "preparing") continue;
+      totals.set(item.name_snapshot, (totals.get(item.name_snapshot) ?? 0) + item.qty);
+    }
+  }
+  return [...totals.entries()]
+    .map(([name, qty]) => ({ name, qty }))
+    .sort((a, b) => b.qty - a.qty);
+}
+
 // ---------------------------------------------------------------------
 // Live board — Realtime, no polling. Rebuilds ticket/item/station data
 // from four flat queries and joins them client-side (same pattern as

@@ -56,19 +56,19 @@ export function DataTable<T>({
   }
 
   if (rows.length === 0) {
-    return <p className="text-sm text-neutral-500">{emptyMessage}</p>;
+    return <p className="text-portal-sm text-ink-500">{emptyMessage}</p>;
   }
 
   return (
-    <table className="w-full text-left text-sm">
-      <thead className="text-neutral-500">
+    <table className="w-full text-left text-portal-sm">
+      <thead className="sticky top-0 bg-surface text-ink-500">
         <tr>
           {columns.map((col) => (
-            <th key={col.key} className={`pb-2 pr-4 ${col.align === "right" ? "text-right" : ""}`}>
+            <th key={col.key} className={`border-b border-line pb-2 pr-4 font-medium ${col.align === "right" ? "text-right" : ""}`}>
               {col.sortValue ? (
                 <button
                   onClick={() => toggleSort(col.key)}
-                  className="inline-flex items-center gap-1 hover:text-white"
+                  className="inline-flex items-center gap-1 hover:text-ink-900"
                   aria-label={`Sort by ${col.header}`}
                 >
                   {col.header}
@@ -84,7 +84,7 @@ export function DataTable<T>({
       </thead>
       <tbody>
         {sorted.map((row) => (
-          <tr key={keyExtractor(row)} className="border-t border-neutral-800">
+          <tr key={keyExtractor(row)} className="border-t border-line text-ink-900">
             {columns.map((col) => (
               <td
                 key={col.key}

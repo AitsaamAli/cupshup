@@ -21,7 +21,7 @@ export function DateRangePicker({
 
   return (
     <div className="flex flex-wrap items-end gap-3">
-      <label className="flex flex-col gap-1 text-sm text-neutral-400">
+      <label className="flex flex-col gap-1 text-portal-xs text-ink-500">
         From
         <input
           type="date"
@@ -31,7 +31,7 @@ export function DateRangePicker({
           onChange={(e) => onChange(e.target.value, to)}
         />
       </label>
-      <label className="flex flex-col gap-1 text-sm text-neutral-400">
+      <label className="flex flex-col gap-1 text-portal-xs text-ink-500">
         To
         <input
           type="date"

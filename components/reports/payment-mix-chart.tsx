@@ -14,10 +14,12 @@ const METHOD_LABEL: Record<string, string> = {
 };
 
 // Fixed brand-family colours, distinct per slice — never repurposed
-// elsewhere (Part 15's colour-meaning rule is about status colours;
-// chart slices are the one place a wider palette is fine, since a pie
-// chart's legend already labels each slice by name).
-const COLORS = ["#22a06a", "#3D8FBF", "#C9902E", "#D64545", "#8B5FBF", "#5AB8C4"];
+// elsewhere (the design system's colour-meaning rule is about status
+// colours; chart slices are the one place a wider palette is fine, since
+// a pie chart's legend already labels each slice by name). First slot is
+// the actual brand green so the "primary" payment method always reads
+// as the same colour as every primary action in the app.
+const COLORS = ["#1a8f5c", "#2a6fa8", "#c87a0a", "#c2453a", "#8B5FBF", "#5AB8C4"];
 
 export function PaymentMixChart({ rows }: { rows: PaymentMixRow[] }) {
   const byMethod = new Map<string, number>();
@@ -27,7 +29,7 @@ export function PaymentMixChart({ rows }: { rows: PaymentMixRow[] }) {
     amount_paisa,
   }));
 
-  if (data.length === 0) return <p className="text-sm text-neutral-500">No payments in this range.</p>;
+  if (data.length === 0) return <p className="text-portal-sm text-ink-500">No payments in this range.</p>;
 
   return (
     <ResponsiveContainer width="100%" height={260}>
@@ -39,7 +41,7 @@ export function PaymentMixChart({ rows }: { rows: PaymentMixRow[] }) {
         </Pie>
         <Tooltip
           formatter={(value) => formatPaisa(Number(value))}
-          contentStyle={{ background: "#171717", border: "1px solid #404040", borderRadius: 6 }}
+          contentStyle={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink-900)" }}
         />
         <Legend />
       </PieChart>

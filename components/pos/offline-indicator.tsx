@@ -21,7 +21,7 @@ export function OfflineIndicator({ outletId }: { outletId: string }) {
   return (
     <div className="flex items-center gap-2">
       {!online && (
-        <span className="rounded-md bg-warning/20 px-2 py-1 text-xs font-medium text-amber-300">
+        <span className="rounded-md bg-warning/10 px-2 py-1 text-portal-xs font-medium text-warning">
           Offline{pendingCount > 0 ? ` — ${pendingCount} order${pendingCount > 1 ? "s" : ""} pending` : ""}
         </span>
       )}
@@ -30,7 +30,7 @@ export function OfflineIndicator({ outletId }: { outletId: string }) {
           type="button"
           onClick={sync}
           disabled={syncing}
-          className="rounded-md bg-warning/20 px-2 py-1 text-xs font-medium text-amber-300 hover:bg-warning/30"
+          className="rounded-md bg-warning/10 px-2 py-1 text-portal-xs font-medium text-warning hover:bg-warning/20"
         >
           {syncing ? "Syncing…" : `${pendingCount} order${pendingCount > 1 ? "s" : ""} syncing`}
         </button>
@@ -60,22 +60,22 @@ function RejectedOrdersButton({
         if ((e.target as HTMLDetailsElement).open) listRejectedOrders(outletId).then(setRows);
       }}
     >
-      <summary className="cursor-pointer list-none rounded-md bg-danger/20 px-2 py-1 text-xs font-medium text-red-300 hover:bg-danger/30">
+      <summary className="cursor-pointer list-none rounded-md bg-danger/10 px-2 py-1 text-portal-xs font-medium text-danger hover:bg-danger/20">
         {count} order{count > 1 ? "s" : ""} couldn&apos;t sync
       </summary>
-      <div className="absolute right-0 z-20 mt-1 w-72 rounded-md border border-neutral-800 bg-neutral-900 p-3 text-xs text-neutral-300 shadow-lg">
-        <p className="mb-2 text-neutral-400">
+      <div className="absolute right-0 z-20 mt-1 w-72 rounded-lg border border-line bg-surface p-3 text-portal-xs text-ink-700 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
+        <p className="mb-2 text-ink-500">
           These were rejected by the server (not a connection problem) while offline — a real reason, not
           something retrying will fix. Handle with the customer, then dismiss.
         </p>
         {!rows ? (
-          <p className="text-neutral-500">Loading…</p>
+          <p className="text-ink-500">Loading…</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {rows.map((r) => (
-              <li key={r.id} className="rounded-md bg-neutral-800 p-2">
-                <p className="text-red-300">{r.lastError}</p>
-                <p className="mt-1 text-neutral-500">
+              <li key={r.id} className="rounded-md bg-canvas p-2">
+                <p className="text-danger">{r.lastError}</p>
+                <p className="mt-1 text-ink-500">
                   {r.items.length} item(s), {new Date(r.createdAt).toLocaleTimeString()}
                 </p>
                 <button
@@ -84,7 +84,7 @@ function RejectedOrdersButton({
                     onDismiss(r.id!);
                     setRows((prev) => prev?.filter((x) => x.id !== r.id) ?? null);
                   }}
-                  className="mt-1 text-neutral-400 underline hover:text-white"
+                  className="mt-1 text-ink-500 underline hover:text-ink-900"
                 >
                   Dismiss
                 </button>

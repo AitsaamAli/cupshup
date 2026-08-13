@@ -22,13 +22,13 @@ export function HourlyHeatmap({ rows }: { rows: HourlySalesRow[] }) {
           <div
             key={b.hour}
             title={`${String(b.hour).padStart(2, "0")}:00 — ${b.orders} orders, ${formatPaisa(b.revenuePaisa)}`}
-            className="flex flex-col items-center justify-center rounded-md border border-neutral-800 py-2 text-xs"
+            className="flex flex-col items-center justify-center rounded-md border border-line py-2 text-portal-xs"
             style={{
-              backgroundColor: intensity === 0 ? "transparent" : `rgba(34, 160, 106, ${0.15 + intensity * 0.7})`,
+              backgroundColor: intensity === 0 ? "transparent" : `rgba(26, 143, 92, ${0.1 + intensity * 0.35})`,
             }}
           >
-            <span className="tabular-nums text-neutral-400">{String(b.hour).padStart(2, "0")}</span>
-            <span className="tabular-nums font-medium">{b.orders}</span>
+            <span className="tabular-nums text-ink-500">{String(b.hour).padStart(2, "0")}</span>
+            <span className="tabular-nums font-medium text-ink-900">{b.orders}</span>
           </div>
         );
       })}

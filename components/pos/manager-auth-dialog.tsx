@@ -99,39 +99,32 @@ export function ManagerAuthDialog({
     <Modal title={title} onClose={onCancel}>
       {!selected ? (
         <div className="space-y-2">
-          {staffList === null && <p className="text-sm text-neutral-400">Loading…</p>}
-          {staffList?.length === 0 && (
-            <p className="text-sm text-neutral-400">No manager/owner/supervisor available.</p>
-          )}
+          {staffList === null && <p className="text-portal-sm text-ink-500">Loading…</p>}
+          {staffList?.length === 0 && <p className="text-portal-sm text-ink-500">No manager/owner/supervisor available.</p>}
           {staffList?.map((s) => (
             <button
               key={s.id}
               onClick={() => setSelected(s)}
-              className="min-h-11 w-full rounded-md bg-neutral-800 px-3 py-2 text-left text-sm hover:bg-neutral-700"
+              className="min-h-14 w-full rounded-md border border-line bg-surface px-3 py-2 text-left text-terminal-sm text-ink-900 hover:bg-canvas"
             >
-              {s.name} <span className="text-neutral-500">— {s.role}</span>
+              {s.name} <span className="text-ink-500">— {s.role}</span>
             </button>
           ))}
         </div>
       ) : (
         <div>
-          <p className="mb-2 text-sm text-neutral-400">{selected.name}&apos;s PIN</p>
+          <p className="mb-2 text-portal-sm text-ink-500">{selected.name}&apos;s PIN</p>
           <div className="mb-3">
             <KeypadDots length={pin.length} />
           </div>
-          {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
+          {error && <p className="mb-2 text-portal-sm text-danger">{error}</p>}
           <NumericKeypad
             value={pin}
             disabled={submitting}
             onDigit={(d) => setPin((p) => p + d)}
             onBackspace={() => setPin((p) => p.slice(0, -1))}
           />
-          <Button
-            variant="primary"
-            onClick={submit}
-            disabled={pin.length < 4 || submitting}
-            className="mt-3 w-full"
-          >
+          <Button variant="primary" density="terminal" onClick={submit} disabled={pin.length < 4 || submitting} className="mt-3 w-full">
             {submitting ? "Checking…" : "Approve"}
           </Button>
         </div>

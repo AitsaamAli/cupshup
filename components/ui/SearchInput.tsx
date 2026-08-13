@@ -37,7 +37,7 @@ export function SearchInput({
 
   return (
     <div className="relative">
-      <SearchIcon size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+      <SearchIcon size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-500" />
       <input
         ref={inputRef}
         type="search"
@@ -48,7 +48,7 @@ export function SearchInput({
         className="input pl-9"
       />
       {!value && (
-        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-sm border border-neutral-700 px-1.5 text-xs text-neutral-500">
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-sm border border-line px-1.5 text-xs text-ink-500">
           {shortcutKey}
         </span>
       )}

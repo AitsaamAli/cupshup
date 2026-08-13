@@ -2,36 +2,53 @@
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-type Variant = "primary" | "secondary" | "danger" | "ghost";
+type Variant = "primary" | "secondary" | "danger" | "ghost" | "quiet";
+type Density = "portal" | "terminal";
 
 const VARIANT_CLASSES: Record<Variant, string> = {
   // Brand green — reserved for the one primary action on a screen.
   primary: "bg-brand-600 text-white hover:bg-brand-700 disabled:bg-brand-600/40",
-  // Neutral — every non-primary action. This is most buttons in the app.
-  secondary: "bg-neutral-800 text-neutral-100 hover:bg-neutral-700 disabled:bg-neutral-800/40",
-  // Reserved for destructive actions (void, delete) — the same red as
+  // Border + surface — most buttons in the app.
+  secondary: "border border-line bg-surface text-ink-900 hover:bg-canvas disabled:opacity-40",
+  // Reserved for destructive actions (void, delete) — same red as
   // StatusBadge's "void" state, never used for anything else.
   danger: "bg-danger text-white hover:brightness-110 disabled:bg-danger/40",
-  // No fill — for low-emphasis actions inside a row (Cancel, Edit link).
-  ghost: "bg-transparent text-neutral-300 hover:bg-neutral-800",
+  // No fill, no border — for a low-emphasis action inside a row.
+  ghost: "bg-transparent text-ink-700 hover:bg-canvas",
+  // Even quieter than ghost — a link-weight action (Cancel, Edit).
+  quiet: "bg-transparent text-ink-500 hover:text-ink-900 px-1",
+};
+
+// Portal: 44px minimum touch target. Terminal: 56px — bigger, tapped in a
+// hurry, sometimes with a wet or gloved hand.
+const DENSITY_CLASSES: Record<Density, string> = {
+  portal: "min-h-11 min-w-11 px-4 text-portal-sm gap-1.5 rounded-md",
+  terminal: "min-h-14 min-w-14 px-5 text-terminal-base gap-2 rounded-md",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
+  density?: Density;
   children: ReactNode;
 }
 
 /**
- * The one button component every screen should use going forward —
- * Part 15. Minimum 44×44px touch target, visible focus ring (global,
- * see globals.css `:focus-visible`), radius capped at the design
- * system's token (never a soft 12–16px card look).
+ * The one button component every screen uses. Touch target and type size
+ * scale with `density` (portal vs terminal — MASTER-DESIGN-PROMPT §"design
+ * tokens"); colour/border always come from tokens, never an inline hex.
  */
-export function Button({ variant = "secondary", className = "", disabled, children, ...props }: ButtonProps) {
+export function Button({
+  variant = "secondary",
+  density = "portal",
+  className = "",
+  disabled,
+  children,
+  ...props
+}: ButtonProps) {
   return (
     <button
       disabled={disabled}
-      className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition-colors disabled:cursor-not-allowed ${VARIANT_CLASSES[variant]} ${className}`}
+      className={`inline-flex items-center justify-center font-medium transition-colors duration-[120ms] ease-out disabled:cursor-not-allowed ${DENSITY_CLASSES[density]} ${VARIANT_CLASSES[variant]} ${className}`}
       {...props}
     >
       {children}

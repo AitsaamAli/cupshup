@@ -1,5 +1,7 @@
-// Permanent regression tool for Case A — cross-outlet write bypass.
-// See scripts/live-audit/README.md. Safe to re-run: fully self-cleaning.
+// Permanent regression tool for Case A (cross-outlet write bypass,
+// 2026-08-13) AND its second-wave siblings (2026-08-14, see
+// docs/security-audit-2026-08-14-second-wave.md). See
+// scripts/live-audit/README.md. Safe to re-run: fully self-cleaning.
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -28,6 +30,28 @@ async function expectRejected(label, fn) {
       failures++;
     } else {
       console.log(`[PASS] ${label}: rejected (${error.message})`);
+    }
+  } catch (err) {
+    console.log(`[FAIL] ${label}: threw unexpectedly — ${err.message}`);
+    failures++;
+  }
+}
+// For direct table writes (no RPC): Postgrest doesn't return an error
+// when an UPDATE/INSERT is blocked by RLS matching zero rows — it just
+// returns an empty `data` array with no error. So "rejected" here means
+// "affected/returned zero rows," not "threw an error."
+async function expectNoRowsAffected(label, fn) {
+  try {
+    const { data, error } = await fn();
+    if (error) {
+      console.log(`[PASS] ${label}: rejected (${error.message})`);
+      return;
+    }
+    if (Array.isArray(data) && data.length === 0) {
+      console.log(`[PASS] ${label}: RLS matched zero rows`);
+    } else {
+      console.log(`[FAIL] ${label}: affected ${data?.length ?? "?"} row(s) — CROSS-OUTLET BYPASS.`);
+      failures++;
     }
   } catch (err) {
     console.log(`[FAIL] ${label}: threw unexpectedly — ${err.message}`);
@@ -126,6 +150,92 @@ if (realOrder) {
   }
 } else {
   console.log("[SKIP] id-based order attacks — no real order exists yet to target");
+}
+
+// --- Second-wave (2026-08-14): siblings found by re-checking every
+// other function that takes a foreign resource id the same way Finding A
+// was found — see docs/security-audit-2026-08-14-second-wave.md. ---
+
+const { data: realDay } = await admin
+  .from("business_days")
+  .select("id")
+  .eq("outlet_id", REAL_OUTLET)
+  .eq("status", "open")
+  .limit(1)
+  .maybeSingle();
+
+if (realDay) {
+  await expectRejected("close_business_day(real business_day id)", () =>
+    anon2.rpc("close_business_day", { p_business_day_id: realDay.id, p_counted_cash_paisa: 0 })
+  );
+
+  const { data: realShift } = await admin
+    .from("shifts")
+    .select("id")
+    .eq("business_day_id", realDay.id)
+    .limit(1)
+    .maybeSingle();
+  if (realShift) {
+    await expectRejected("close_shift(real shift id)", () =>
+      anon2.rpc("close_shift", { p_shift_id: realShift.id, p_counted_cash_paisa: 0 })
+    );
+    await expectRejected("record_cash_movement(real shift id)", () =>
+      anon2.rpc("record_cash_movement", { p_shift_id: realShift.id, p_type: "paid_in", p_amount_paisa: 100 })
+    );
+  } else {
+    console.log("[SKIP] close_shift / record_cash_movement — no real open shift to target");
+  }
+} else {
+  console.log("[SKIP] close_business_day / close_shift / record_cash_movement — no real open business day");
+}
+
+await expectRejected("change_item_price(real menu item id)", () =>
+  anon2.rpc("change_item_price", { p_item_id: item.id, p_new_price_paisa: 999999 })
+);
+await expectRejected("toggle_86(real menu item id)", () => anon2.rpc("toggle_86", { p_item_id: item.id, p_is_86: true }));
+await expectRejected("set_menu_item_active(real menu item id)", () =>
+  anon2.rpc("set_menu_item_active", { p_item_id: item.id, p_active: false })
+);
+const { data: realCategory } = await admin.from("menu_categories").select("id").eq("outlet_id", REAL_OUTLET).limit(1).single();
+await expectRejected("upsert_menu_item(real item id, own outlet's category)", () =>
+  anon2.rpc("upsert_menu_item", { p_id: item.id, p_category_id: realCategory.id, p_name: "AUDIT-HIJACKED" })
+);
+
+const { data: realIngredient } = await admin.from("ingredients").select("id").eq("outlet_id", REAL_OUTLET).limit(1).maybeSingle();
+if (realIngredient) {
+  await expectRejected("upsert_recipe_line(real item + real ingredient id)", () =>
+    anon2.rpc("upsert_recipe_line", { p_menu_item_id: item.id, p_ingredient_id: realIngredient.id, p_qty: 1 })
+  );
+  await expectRejected("record_purchase(real ingredient id)", () =>
+    anon2.rpc("record_purchase", { p_ingredient_id: realIngredient.id, p_qty: 10, p_unit_cost_paisa: 500 })
+  );
+  await expectRejected("record_stock_count(real ingredient id)", () =>
+    anon2.rpc("record_stock_count", { p_ingredient_id: realIngredient.id, p_counted_qty: 999 })
+  );
+
+  const { data: realPurchase } = await admin.from("purchases").select("id").eq("outlet_id", REAL_OUTLET).limit(1).maybeSingle();
+  if (realPurchase) {
+    await expectRejected("record_purchase_return(real purchase id + real ingredient id)", () =>
+      anon2.rpc("record_purchase_return", { p_purchase_id: realPurchase.id, p_ingredient_id: realIngredient.id, p_qty: 1 })
+    );
+  } else {
+    console.log("[SKIP] record_purchase_return — no real purchase to target");
+  }
+} else {
+  console.log("[SKIP] recipe/inventory attacks — no real ingredient seeded for this outlet");
+}
+
+// --- Direct-table RLS bypass attempts — no RPC involved at all, proving
+// the 0037 policy fix (not just the 0036 RPC fix) actually holds. The
+// second-outlet owner genuinely holds role 'owner', so a role-only USING
+// clause would have let every one of these through before 0037. ---
+await expectNoRowsAffected("direct UPDATE menu_items (real item, bypassing the RPC)", () =>
+  anon2.from("menu_items").update({ name: "AUDIT-RLS-BYPASS" }).eq("id", item.id).select()
+);
+if (realIngredient) {
+  await expectNoRowsAffected("direct INSERT recipe_lines (real item + real ingredient, bypassing the RPC)", () =>
+    anon2.from("recipe_lines").insert({ menu_item_id: item.id, ingredient_id: realIngredient.id, qty: 1 }).select()
+  );
 }
 
 console.log("\nCleaning up throwaway rows...");

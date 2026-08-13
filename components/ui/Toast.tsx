@@ -22,7 +22,7 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 const DURATION_MS = 2000;
 
 const KIND_CLASSES: Record<ToastKind, string> = {
-  info: "bg-neutral-800 text-neutral-100",
+  info: "bg-ink-900 text-white",
   success: "bg-brand-600 text-white",
   error: "bg-danger text-white",
 };

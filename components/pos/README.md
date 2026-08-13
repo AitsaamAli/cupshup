@@ -1,6 +1,8 @@
 # components/pos
 
 POS-specific components that compose the primitives in `components/ui`.
+Fully retrofitted onto the "Pakistani Portal, Dual Density" system (all
+of Terminal density) — see `docs/design-system.md` §5.
 
 - `manager-auth-dialog.tsx` — built in Part 10, rebuilt on the shared
   `Modal`/`NumericKeypad`/`KeypadDots`/`Button` components in Part 15.

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Money } from "@/components/ui/Money";
+import { Field, Input } from "@/components/ui/Input";
 import type { MenuItem, ModifierGroup, Modifier } from "@/lib/menu";
 import type { Paisa } from "@/lib/money";
 
@@ -81,15 +82,15 @@ export function ModifierSheet({
           const selected = selectedByGroup.get(group.id) ?? new Set();
           return (
             <fieldset key={group.id}>
-              <legend className="mb-1 text-xs text-neutral-400">
+              <legend className="mb-1 text-portal-xs text-ink-500">
                 {group.name}
-                {group.min_select > 0 && <span className="text-amber-400"> (required)</span>}
+                {group.min_select > 0 && <span className="text-warning"> (required)</span>}
               </legend>
               <div className="space-y-1">
                 {options.map((mod) => (
                   <label
                     key={mod.id}
-                    className="flex min-h-11 cursor-pointer items-center justify-between rounded-md border border-neutral-800 px-3 py-2 text-sm hover:border-neutral-600"
+                    className="flex min-h-11 cursor-pointer items-center justify-between rounded-md border border-line px-3 py-2 text-portal-sm text-ink-900 transition-colors duration-[120ms] ease-out hover:border-brand-300"
                   >
                     <span className="flex items-center gap-2">
                       <input
@@ -97,12 +98,12 @@ export function ModifierSheet({
                         name={group.id}
                         checked={selected.has(mod.id)}
                         onChange={() => toggle(group, mod.id)}
-                        className="h-4 w-4"
+                        className="h-4 w-4 accent-brand-600"
                       />
                       {mod.name}
                     </span>
                     {mod.price_delta_paisa !== 0 && (
-                      <Money paisa={mod.price_delta_paisa as Paisa} className="text-neutral-400" />
+                      <Money paisa={mod.price_delta_paisa as Paisa} className="text-ink-500" />
                     )}
                   </label>
                 ))}
@@ -111,13 +112,12 @@ export function ModifierSheet({
           );
         })}
 
-        <label className="block">
-          <span className="mb-1 block text-xs text-neutral-400">Note (optional)</span>
-          <input value={note} onChange={(e) => setNote(e.target.value)} className="input" placeholder="e.g. less spicy" />
-        </label>
+        <Field label="Note (optional)" htmlFor="modifier-note">
+          <Input id="modifier-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. less spicy" />
+        </Field>
       </div>
 
-      <Button variant="primary" className="mt-4 w-full" disabled={!allSatisfied} onClick={confirm}>
+      <Button variant="primary" density="terminal" className="mt-4 w-full" disabled={!allSatisfied} onClick={confirm}>
         Add to order
       </Button>
     </Modal>

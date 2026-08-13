@@ -31,8 +31,8 @@ function StationTab({ label, selected, onClick }: { label: string; selected: boo
     <button
       type="button"
       onClick={onClick}
-      className={`min-h-16 rounded-md px-6 text-lg font-semibold transition-colors ${
-        selected ? "bg-brand-600 text-white" : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700"
+      className={`min-h-16 rounded-md px-6 text-kds-sm font-semibold transition-colors duration-[120ms] ease-out ${
+        selected ? "bg-brand-600 text-white" : "bg-surface text-ink-700 hover:bg-canvas"
       }`}
     >
       {label}

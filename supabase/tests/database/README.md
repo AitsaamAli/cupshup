@@ -43,6 +43,23 @@ its specific pass count.
   identity-switching within one pgTAP transaction) live in
   `scripts/live-audit/` instead — see that directory's own README.
 
+- `second_wave_cross_outlet.sql` — the 2026-08-14 second-wave audit's 12
+  sibling findings (F–O in `docs/security-audit-2026-08-14-second-wave.md`):
+  14 assertions attacking `close_business_day`, `close_shift`,
+  `record_cash_movement`, `upsert_menu_item`, `change_item_price`,
+  `toggle_86`, `set_menu_item_active`, `upsert_recipe_line`,
+  `record_purchase`, `record_stock_count`, and `record_purchase_return`
+  with a second, throwaway outlet's owner identity — plus three direct
+  raw-table writes (bypassing the RPC layer entirely) proving the
+  `0037` RLS-policy fix holds on its own, not just the `0036` RPC fix.
+  Fixed in `0036_second_wave_ownership_fixes.sql` /
+  `0037_second_wave_rls_fixes.sql`. **Written but not yet executed** —
+  see that migration's own live-verification banner.
+- `void_idempotency.sql` — finding N of the same audit: `void_order()`
+  had no guard against being called twice on the same order, silently
+  duplicating the stock give-back on the second call. Fixed in
+  `0039_void_order_idempotency_fix.sql`. **Written but not yet executed.**
+
 Every test creates only throwaway `auth.users`/`staff` rows (and one
 throwaway `stock_movements` row) inside its own rolled-back
 transaction — never real data, never left behind.

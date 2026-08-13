@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { Field, Input, Select } from "@/components/ui/Input";
 import { ManagerAuthDialog } from "@/components/pos/manager-auth-dialog";
 import { voidOrder } from "@/lib/orders";
 import type { StaffRole } from "@/lib/auth";
@@ -66,22 +67,20 @@ export function VoidOrderDialog({
   return (
     <Modal title="Void order" onClose={onClose}>
       <div className="space-y-3">
-        <label className="block">
-          <span className="mb-1 block text-xs text-neutral-400">Reason</span>
-          <select value={reason} onChange={(e) => setReason(e.target.value)} className="input">
+        <Field label="Reason" htmlFor="void-reason">
+          <Select id="void-reason" value={reason} onChange={(e) => setReason(e.target.value)}>
             {VOID_REASONS.map((r) => (
               <option key={r.code} value={r.code}>
                 {r.label}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-neutral-400">Note (optional)</span>
-          <input value={note} onChange={(e) => setNote(e.target.value)} className="input" />
-        </label>
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        <Button variant="danger" className="w-full" disabled={submitting} onClick={confirmVoid}>
+          </Select>
+        </Field>
+        <Field label="Note (optional)" htmlFor="void-note">
+          <Input id="void-note" value={note} onChange={(e) => setNote(e.target.value)} />
+        </Field>
+        {error && <p className="text-portal-sm text-danger">{error}</p>}
+        <Button variant="danger" density="terminal" className="w-full" disabled={submitting} onClick={confirmVoid}>
           {submitting ? "Voiding…" : "Confirm void"}
         </Button>
       </div>

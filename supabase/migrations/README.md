@@ -4,15 +4,15 @@ Every database change lives here as a numbered SQL file, committed to git.
 **No table is ever created by hand in the Supabase dashboard** — that's how
 staging and production silently drift apart.
 
-> ✅ **Live-verified, most recently 2026-08-13.** All 35 files below
-> have actually been pushed to and applied against the real linked
-> project (via `supabase db push --db-url ...`), not just reviewed on
-> paper. 29/29 tables have RLS enabled, all core functions exist, the
-> seeded data counts match expectations, `business_date_of()` /
-> `tax_rate_bp()` were queried live and returned the correct values, the
-> expense amortization view was tested against a real 31-day row (which
-> caught and fixed a genuine 9-paisa rounding bug), all 21 real menu
-> categories were confirmed backfilled to a `station` with none left
+> ✅ **Live-verified through file 35, most recently 2026-08-13.** Files
+> `0001`–`0035` have actually been pushed to and applied against the real
+> linked project (via `supabase db push --db-url ...`), not just
+> reviewed on paper. 29/29 tables have RLS enabled, all core functions
+> exist, the seeded data counts match expectations, `business_date_of()`
+> / `tax_rate_bp()` were queried live and returned the correct values,
+> the expense amortization view was tested against a real 31-day row
+> (which caught and fixed a genuine 9-paisa rounding bug), all 21 real
+> menu categories were confirmed backfilled to a `station` with none left
 > null, every Part 18 owner-only view was confirmed to return zero rows
 > outside an authenticated session, `record_invoice_print()` was
 > confirmed to return `integer` (not `void`) after Part 19's
@@ -23,6 +23,23 @@ staging and production silently drift apart.
 > `docs/kitchen-display.md`, `docs/reports-and-pl.md`,
 > `docs/security-audit-2026-08-13.md`, and
 > `docs/printing-and-pra-invoice.md` for the details.
+>
+> ✅ **Files `0036`–`0042` are now LIVE VERIFIED, 2026-08-14 (Phase 4).**
+> The user supplied a real access token; the real project was fully
+> reset and all 42 migrations replayed from zero (a genuine clean-install
+> test, previously impossible to run). `scripts/live-audit/
+> cross-outlet-attack.mjs` then passed 23/23 against the freshly reset
+> database with real cross-outlet/cross-identity attacks, covering every
+> function fixed across all three static-audit waves.
+> `concurrency-attack.mjs` passed 100/100 real concurrent calls.
+> `0042_verify_staff_pin_grant_fix.sql` fixes a CRITICAL finding this
+> live pass discovered that no static review could have —
+> `verify_staff_pin()` was directly callable by a completely
+> unauthenticated `anon` client — confirmed broken, fixed, and
+> confirmed closed, all live. One CRITICAL finding remains open (the
+> settled-order-void financial-integrity gap — needs a product decision,
+> not a missing test) and `0041`'s storage fix has no dedicated live
+> check yet. Full record: `docs/security-audit-2026-08-14-phase4-live-verification.md`.
 
 - `0001_schema.sql` — **Part 03.** Core schema: 29 tables, 10 enums, and the
   `ingredient_stock` view.
@@ -192,6 +209,64 @@ staging and production silently drift apart.
   Regression: `scripts/live-audit/cross-outlet-attack.mjs` and
   `supabase/tests/database/cross_outlet_isolation.sql`. Full incident
   record: `docs/security-audit-2026-08-13.md`.
+- `0036_second_wave_ownership_fixes.sql` — second-wave audit, **CRITICAL**:
+  the SAME missing-outlet-ownership-check pattern as 0035, found by
+  independently re-checking every OTHER function taking a foreign
+  resource id instead of assuming the 13 already-fixed ones were the
+  whole picture. Fixes `close_business_day`, `close_shift`,
+  `record_cash_movement`, `open_shift` (terminal id), `upsert_menu_item`,
+  `change_item_price`, `toggle_86`, `set_menu_item_active`,
+  `upsert_recipe_line`, `remove_recipe_line`, `record_purchase`,
+  `record_stock_count`, `record_purchase_return`, and revokes public
+  execute on `next_invoice_no` (had no grant restriction at all).
+- `0037_second_wave_rls_fixes.sql` — second-wave audit, **CRITICAL**: the
+  same gap at the RLS layer — `manage_items`/`kitchen_86` (menu_items),
+  `manage_prices` (menu_item_prices), `manage_recipes` (recipe_lines),
+  and `cash_moves` (cash_movements) all checked ROLE only, so a direct
+  `supabase.from(table).update()` call bypassed the RPC fix entirely.
+  Also fixes a separate READ-side leak: `read_prices`, `read_recipes`,
+  `read_mods`, `read_item_mods` used `auth.uid() is not null` as their
+  only check, so every outlet's price history, recipes, and modifiers
+  were readable by any logged-in staff member at any outlet.
+- `0038_second_wave_storage_outlet_scoping.sql` — second-wave audit,
+  **CRITICAL**: the `purchase-invoices`/`expense-receipts` private
+  storage bucket policies checked role only, no outlet — paired with an
+  app-code change (upload paths now prefixed with outlet id) so the new
+  `(storage.foldername(name))[1] = my_outlet()::text` check has
+  something to check against.
+- `0039_void_order_idempotency_fix.sql` — second-wave audit, **HIGH**,
+  state-machine gap (not cross-outlet): `void_order()` was the only
+  order-mutating function with no guard against re-running on an
+  already-voided order — a double call duplicated the stock give-back.
+  Regression: `supabase/tests/database/void_idempotency.sql`. Full
+  writeup, including one deliberately UNFIXED finding that needs a
+  product decision first: `docs/security-audit-2026-08-14-second-wave.md`.
+- `0040_place_order_table_customer_fix.sql` — third-wave audit,
+  **MEDIUM**: `place_order()` itself — already the subject of TWO prior
+  fixes (`0032`, `0035`) — never validated `p_table_id`/`p_customer_id`
+  against the caller's outlet. Found by a systematic foreign-id sweep of
+  every parameter this one function accepts, not just the ones already
+  fixed. Regression: 2 new assertions in
+  `supabase/tests/database/second_wave_cross_outlet.sql`.
+- `0041_menu_images_outlet_scoping.sql` — third-wave audit, **MEDIUM**:
+  completing the storage matrix found `menu-images`' write policies had
+  the same role-only gap `0038` fixed on the other two buckets. Read
+  stays public by design; only insert/update/delete gained the
+  outlet-path check. Paired with `lib/storage.ts`'s upload path. Full
+  writeup, complete authorization/RLS/storage matrices, and the
+  settled-order-void financial-integrity finding (still open, needs a
+  product decision): `docs/security-audit-2026-08-14-third-wave.md`.
+- `0042_verify_staff_pin_grant_fix.sql` — Phase 4 live verification,
+  **CRITICAL, found only live**: `verify_staff_pin()` was directly
+  callable by a completely unauthenticated `anon` client — `revoke all
+  ... from public` (used almost everywhere in this codebase) never
+  actually blocks `anon`/`authenticated`'s direct grant. Harmless for
+  every other function (their own `current_staff()` check still rejects
+  anon), but this is the one function deliberately callable with no
+  session yet, so it had no such check. Confirmed broken, fixed, and
+  confirmed closed, all live, in one session. Regression:
+  `scripts/live-audit/pin-grant-isolation.mjs`. Full record:
+  `docs/security-audit-2026-08-14-phase4-live-verification.md`.
 
 `0001`, `0005`, and `0006` were copied from the project's pre-written
 reference SQL at the repo root, per each part's own "reference SQL ready"

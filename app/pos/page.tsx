@@ -23,6 +23,7 @@ import { CartPanel, type CartLine, type ExistingLine } from "@/components/pos/ca
 import { VoidOrderDialog } from "@/components/pos/void-order-dialog";
 import { PendingPrintsIndicator } from "@/components/print/pending-prints-indicator";
 import { OfflineIndicator } from "@/components/pos/offline-indicator";
+import { AppShell } from "@/components/ui/AppShell";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 
@@ -38,7 +39,7 @@ const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
  */
 export default function PosPage() {
   const router = useRouter();
-  const { staff, loading: staffLoading } = useStaffSession("pos");
+  const { staff, loading: staffLoading, lock } = useStaffSession("pos");
   const { day, loading: dayLoading, offline: dayOffline } = useBusinessDay(OUTLET_ID);
   const {
     categories,
@@ -312,38 +313,36 @@ export default function PosPage() {
 
   // ---- Render --------------------------------------------------------------
   if (staffLoading || dayLoading || menuLoading) {
-    return <p className="p-8 text-neutral-400">Loading…</p>;
+    return <p className="p-8 text-portal-sm text-ink-500">Loading…</p>;
   }
 
   if (!dayOpen) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-white">
-        <p className="text-lg text-neutral-400">Day not open</p>
+      <main className="flex min-h-screen items-center justify-center bg-canvas">
+        <p className="text-terminal-lg text-ink-500">Day not open</p>
       </main>
     );
   }
 
   return (
-    <main className="flex h-screen flex-col bg-neutral-950 text-white">
-      <header className="flex items-center justify-between border-b border-neutral-900 px-4 py-2 text-sm text-neutral-400">
-        <span className="font-medium text-white">Cup Shup</span>
-        <span>
-          {table ? `Table ${table.label}` : orderType ? orderType.replace("_", " ") : "—"}
-        </span>
-        <span>Cashier: {staff?.name}</span>
-        <span className="tabular-nums">{day.business_date}</span>
-        <span className="text-brand-400">Day: OPEN{dayOffline ? " (cached)" : ""}</span>
-        <OfflineIndicator outletId={OUTLET_ID} />
-        <PendingPrintsIndicator />
-      </header>
-      {menuOffline && (
-        <p className="border-b border-amber-900/40 bg-amber-950/40 px-4 py-1 text-xs text-amber-300">
-          Offline — showing the last synced menu. 86&apos;d items and price changes made elsewhere won&apos;t show
-          until reconnected.
-        </p>
-      )}
+    <AppShell density="terminal" staff={staff} dayStatus={dayOffline ? "open" : "open"} onLock={lock}>
+      <div className="flex h-[calc(100vh-3rem)] flex-col">
+        <div className="flex items-center justify-between border-b border-line bg-surface px-4 py-1.5 text-portal-xs text-ink-500">
+          <span>{table ? `Table ${table.label}` : orderType ? orderType.replace("_", " ") : "—"}</span>
+          <span className="tabular-nums">{day.business_date}</span>
+          <div className="flex items-center gap-2">
+            <OfflineIndicator outletId={OUTLET_ID} />
+            <PendingPrintsIndicator />
+          </div>
+        </div>
+        {menuOffline && (
+          <p className="border-b border-line bg-warning/10 px-4 py-1 text-portal-xs text-warning">
+            Offline — showing the last synced menu. 86&apos;d items and price changes made elsewhere won&apos;t show
+            until reconnected.
+          </p>
+        )}
 
-      {!inCartBuilding ? (
+        {!inCartBuilding ? (
         orderType === null ? (
           <OrderTypePicker onPick={setOrderType} />
         ) : orderType === "dine_in" ? (
@@ -383,7 +382,8 @@ export default function PosPage() {
             />
           </div>
         </div>
-      )}
+        )}
+      </div>
 
       {modifierSheetItem && (
         <ModifierSheet
@@ -410,6 +410,6 @@ export default function PosPage() {
           }}
         />
       )}
-    </main>
+    </AppShell>
   );
 }

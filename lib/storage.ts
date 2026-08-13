@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const MAX_DIMENSION = 800; // px, longest side — plenty for a menu tile or POS thumbnail
 const JPEG_QUALITY = 0.82;
+const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 
 /**
  * Resizes an image file entirely in the browser (Canvas), so uploads stay
@@ -43,7 +44,12 @@ async function resizeImage(file: File): Promise<Blob> {
 export async function uploadMenuItemImage(itemId: string, file: File): Promise<string> {
   const resized = await resizeImage(file);
   const supabase = createClient();
-  const path = `${itemId}/${Date.now()}.jpg`;
+  // Outlet id must be the FIRST path segment — the storage RLS write
+  // policies (0041_menu_images_outlet_scoping.sql) check
+  // (storage.foldername(name))[1] against the caller's own outlet, even
+  // though this bucket's READ side stays public (menu photos are meant
+  // to render without an auth header).
+  const path = `${OUTLET_ID}/${itemId}/${Date.now()}.jpg`;
 
   const { error } = await supabase.storage
     .from("menu-images")

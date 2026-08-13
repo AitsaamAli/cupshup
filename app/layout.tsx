@@ -1,18 +1,29 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Noto_Nastaliq_Urdu } from "next/font/google";
 import "./globals.css";
 import { ShortcutsProvider } from "@/lib/shortcuts";
 import { ShortcutsOverlay } from "@/components/ui/ShortcutsOverlay";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
+import { CommandPalette } from "@/components/ui/CommandPalette";
 
-// Part 15: Inter, not a decorative serif. POS screens are ~80% numbers —
-// Inter ships real tabular figures (via `font-variant-numeric: tabular-nums`,
-// applied per-element in Money.tsx and DataTable.tsx, not globally, so
-// running body text keeps its normal proportional spacing).
+// Inter, not a decorative serif — POS screens are ~80% numbers, and Inter
+// ships real tabular figures (`font-variant-numeric: tabular-nums`, applied
+// globally in globals.css to every `[data-numeric]`/`.tabular-nums` element).
 const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
+});
+
+// Urdu locale support (kitchen/KDS staff) — MASTER-DESIGN-PROMPT §7. Full
+// next-intl routing/RTL wiring is scoped OUT of this pass (see
+// docs/design-system.md's "deferred" note); the font is loaded now so any
+// [lang="ur"] subtree already renders correctly the moment translated
+// strings land.
+const notoNastaliqUrdu = Noto_Nastaliq_Urdu({
+  variable: "--font-urdu",
+  subsets: ["arabic"],
+  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {
@@ -28,13 +39,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    <html lang="en" className={`${inter.variable} ${notoNastaliqUrdu.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <ServiceWorkerRegistration />
         <ShortcutsProvider>
           <ToastProvider>
             {children}
             <ShortcutsOverlay />
+            <CommandPalette />
           </ToastProvider>
         </ShortcutsProvider>
       </body>

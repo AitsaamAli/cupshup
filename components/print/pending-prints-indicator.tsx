@@ -19,7 +19,7 @@ export function PendingPrintsIndicator() {
       type="button"
       onClick={retryAll}
       disabled={retrying}
-      className="rounded-md bg-danger/20 px-2 py-1 text-xs font-medium text-red-300 hover:bg-danger/30"
+      className="rounded-md bg-danger/10 px-2 py-1 text-portal-xs font-medium text-danger hover:bg-danger/20"
       title={jobs.map((j) => j.lastError).filter(Boolean).join("; ")}
     >
       {retrying ? "Retrying…" : `${jobs.length} print${jobs.length > 1 ? "s" : ""} pending — tap to retry`}

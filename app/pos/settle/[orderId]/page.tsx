@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useStaffSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/client";
-import { formatPaisa, rupeesToPaisa, type Paisa } from "@/lib/money";
+import { formatPaisa, rupeesToPaisa, paisaToRupees, type Paisa } from "@/lib/money";
 import { voidOrder } from "@/lib/orders";
 import {
   settleOrder,
@@ -18,6 +18,10 @@ import { PrintButton } from "@/components/print/print-button";
 import { fetchReceiptData, recordInvoicePrint } from "@/lib/receipt-data";
 import { buildReceiptDoc, type PrintDoc } from "@/lib/print-templates";
 import { submitToPra } from "@/lib/pra";
+import { Button } from "@/components/ui/Button";
+import { Field, Input, Select } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
+import { Money } from "@/components/ui/Money";
 
 const APPROVER_ROLES = new Set(["owner", "manager", "supervisor"]);
 const METHOD_LABEL: Record<PaymentMethod, string> = {
@@ -51,11 +55,18 @@ interface SplitRow {
 }
 
 /**
- * Settlement screen — Part 10. Payment is entirely separate from order
- * creation (Part 09): a dine-in order sits as `sent_to_kitchen`/`ready`/
- * `served` for as long as the table is eating, and only becomes
- * `settled` here, once the customer actually pays — split across
- * multiple methods if they want, each taxed at its own rate.
+ * Settlement screen. Payment is entirely separate from order creation: a
+ * dine-in order sits as `sent_to_kitchen`/`ready`/`served` for as long as
+ * the table is eating, and only becomes `settled` here, once the
+ * customer actually pays — split across multiple methods if they want,
+ * each taxed at its own rate.
+ *
+ * "Exact amount" (below) is the fix for a real, measured tap-count
+ * failure: the design benchmark targets <=3 taps for a cash-exact
+ * settle (Toast/Square both make this one tap), and the previous version
+ * of this screen had no way to do it faster than typing the bill total
+ * twice by hand. One tap now fills both the base and tendered fields
+ * with the exact bill total for the single default split.
  */
 export default function SettlePage() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -67,9 +78,7 @@ export default function SettlePage() {
   const [discountRupees, setDiscountRupees] = useState("0");
   const [serviceChargeRupees, setServiceChargeRupees] = useState("0");
   const [deliveryFeeRupees, setDeliveryFeeRupees] = useState("0");
-  const [splits, setSplits] = useState<SplitRow[]>([
-    { method: "cash", baseRupees: "", tenderedRupees: "" },
-  ]);
+  const [splits, setSplits] = useState<SplitRow[]>([{ method: "cash", baseRupees: "", tenderedRupees: "" }]);
   const [needsApproval, setNeedsApproval] = useState(false);
   const [approvedBy, setApprovedBy] = useState<string | null>(null);
   const [showVoid, setShowVoid] = useState(false);
@@ -122,6 +131,24 @@ export default function SettlePage() {
     setSplits((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   }
 
+  /** The one-tap "customer pays exactly what's owed, in cash" shortcut —
+   * only offered when there's a single split, since splitting across
+   * methods has no single "exact" amount per line by definition.
+   * Tendered is the GRAND total (base + tax), not just the pre-tax base
+   * — tendering only the base would silently under-tender by the tax
+   * amount and show a false "no change owed". */
+  function fillExactAmount() {
+    const method = splits[0].method;
+    const baseRupees = paisaToRupees(netBasePaisa as Paisa).toString();
+    if (method !== "cash") {
+      updateSplit(0, { baseRupees });
+      return;
+    }
+    const rate = taxRates?.[method]?.rate_bp ?? 0;
+    const tax = previewSplitTax(netBasePaisa as Paisa, rate);
+    updateSplit(0, { baseRupees, tenderedRupees: paisaToRupees((netBasePaisa + tax) as Paisa).toString() });
+  }
+
   async function submit() {
     if (!order) return;
     if (discountPaisa > 0 && !canApprove && !approvedBy) {
@@ -130,9 +157,7 @@ export default function SettlePage() {
     }
     if (splitBaseSum !== netBasePaisa) {
       setError(
-        `Splits (${formatPaisa(splitBaseSum as Paisa)}) don't match the bill (${formatPaisa(
-          netBasePaisa as Paisa
-        )}).`
+        `Splits (${formatPaisa(splitBaseSum as Paisa)}) don't match the bill (${formatPaisa(netBasePaisa as Paisa)}).`
       );
       return;
     }
@@ -158,15 +183,13 @@ export default function SettlePage() {
   }
 
   /**
-   * "order settle -> PRA ko bhejo -> fiscal number + QR wapas -> print"
-   * (brief §5). PRA submission is best-effort and never blocks the
-   * receipt: if it fails or times out, submitToPra() has already
-   * queued it for retry (0030_printing_functions.sql), and the receipt
-   * prints with the LOCAL invoice_no and no QR either way — exactly
-   * "internet down ho to local number par print karo". Doesn't build
-   * the receipt itself — that happens fresh on every actual Print click
-   * (buildReceiptForPrint below), so the REPRINT counter only advances
-   * on a real click, never just because this ran.
+   * "order settle -> PRA ko bhejo -> fiscal number + QR wapas -> print".
+   * PRA submission is best-effort and never blocks the receipt: if it
+   * fails or times out, submitToPra() has already queued it for retry,
+   * and the receipt prints with the LOCAL invoice_no and no QR either
+   * way. Doesn't build the receipt itself — that happens fresh on every
+   * actual Print click (buildReceiptForPrint below), so the REPRINT
+   * counter only advances on a real click, never just because this ran.
    */
   async function prepareReceipt() {
     setReadyToPrint(true);
@@ -210,105 +233,99 @@ export default function SettlePage() {
     }
   }
 
-  if (!order) return <p className="p-8 text-neutral-400">Loading order…</p>;
+  if (!order) return <p className="p-8 text-portal-sm text-ink-500">Loading order…</p>;
 
   if (readyToPrint) {
     return (
-      <main className="min-h-screen bg-neutral-950 p-6 text-white">
-        <h1 className="mb-1 text-xl font-semibold">Order #{order.order_no} settled</h1>
-        <p className="mb-6 text-sm text-neutral-400">
+      <main className="min-h-screen bg-canvas p-6">
+        <h1 className="mb-1 text-terminal-lg font-semibold text-ink-900">Order #{order.order_no} settled</h1>
+        <p className="mb-6 text-portal-sm text-ink-500">
           {praStatus === "pending" && "Sending to PRA…"}
           {praStatus === "synced" && "PRA fiscal number received."}
           {praStatus === "queued" && "PRA sync failed — queued for retry. Receipt still prints with the local invoice number."}
         </p>
         <PrintButton kind="receipt" getDoc={buildReceiptForPrint} label="Print receipt" />
-        <button
-          onClick={() => router.push("/pos")}
-          className="mt-4 block rounded-md bg-white px-4 py-3 font-medium text-neutral-950"
-        >
+        <Button density="terminal" variant="primary" onClick={() => router.push("/pos")} className="mt-4">
           Back to POS
-        </button>
+        </Button>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 p-6 text-white">
-      <h1 className="mb-1 text-xl font-semibold">Settle Order #{order.order_no}</h1>
-      <p className="mb-6 text-sm text-neutral-400">Status: {order.status}</p>
+    <main className="min-h-screen bg-canvas p-6">
+      <h1 className="mb-1 text-terminal-lg font-semibold text-ink-900">Settle Order #{order.order_no}</h1>
+      <p className="mb-6 text-portal-sm text-ink-500">Status: {order.status}</p>
 
       <section className="mb-6 space-y-1">
         {order.order_items.map((item) => (
-          <div key={item.id} className="flex justify-between text-sm">
+          <div key={item.id} className="flex justify-between text-portal-sm text-ink-700">
             <span>
               {item.qty} × {item.name_snapshot}
             </span>
-            <span>{formatPaisa(item.line_total_paisa as Paisa)}</span>
+            <Money paisa={item.line_total_paisa as Paisa} />
           </div>
         ))}
-        <div className="flex justify-between border-t border-neutral-800 pt-2 text-sm font-medium">
+        <div className="flex justify-between border-t border-line pt-2 text-portal-sm font-medium text-ink-900">
           <span>Subtotal</span>
-          <span>{formatPaisa(order.subtotal_paisa as Paisa)}</span>
+          <Money paisa={order.subtotal_paisa as Paisa} />
         </div>
       </section>
 
       <section className="mb-6 grid grid-cols-3 gap-3">
-        <NumberField
-          label={`Discount (Rs)${discountNeedsApproval ? " — needs manager" : ""}`}
-          value={discountRupees}
-          onChange={setDiscountRupees}
-        />
-        <NumberField label="Service charge (Rs)" value={serviceChargeRupees} onChange={setServiceChargeRupees} />
-        <NumberField label="Delivery fee (Rs)" value={deliveryFeeRupees} onChange={setDeliveryFeeRupees} />
+        <Field label={`Discount (Rs)${discountNeedsApproval ? " — needs manager" : ""}`} htmlFor="settle-discount">
+          <NumberInput id="settle-discount" value={discountRupees} onChange={setDiscountRupees} />
+        </Field>
+        <Field label="Service charge (Rs)" htmlFor="settle-service">
+          <NumberInput id="settle-service" value={serviceChargeRupees} onChange={setServiceChargeRupees} />
+        </Field>
+        <Field label="Delivery fee (Rs)" htmlFor="settle-delivery">
+          <NumberInput id="settle-delivery" value={deliveryFeeRupees} onChange={setDeliveryFeeRupees} />
+        </Field>
       </section>
 
       <section className="mb-6">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-medium">Payment split</h2>
-          <button
-            onClick={() => setSplits((s) => [...s, { method: "cash", baseRupees: "", tenderedRupees: "" }])}
-            className="text-sm text-neutral-400 underline"
-          >
-            + Add split
-          </button>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="text-portal-base font-semibold text-ink-900">Payment split</h2>
+          <div className="flex items-center gap-3">
+            {splits.length === 1 && (
+              <Button density="terminal" variant="primary" onClick={fillExactAmount} disabled={!order}>
+                Exact amount
+              </Button>
+            )}
+            <button
+              onClick={() => setSplits((s) => [...s, { method: "cash", baseRupees: "", tenderedRupees: "" }])}
+              className="text-portal-sm text-ink-500 hover:underline"
+            >
+              + Add split
+            </button>
+          </div>
         </div>
 
         {splits.map((s, i) => (
-          <div key={i} className="mb-2 grid grid-cols-4 items-end gap-2 rounded-md border border-neutral-800 p-3">
-            <label className="block">
-              <span className="mb-1 block text-xs text-neutral-400">Method</span>
-              <select
-                value={s.method}
-                onChange={(e) => updateSplit(i, { method: e.target.value as PaymentMethod })}
-                className="input"
-              >
+          <div key={i} className="mb-2 grid grid-cols-4 items-end gap-2 rounded-lg border border-line bg-surface p-3">
+            <Field label="Method" htmlFor={`settle-method-${i}`}>
+              <Select id={`settle-method-${i}`} value={s.method} onChange={(e) => updateSplit(i, { method: e.target.value as PaymentMethod })}>
                 {Object.entries(METHOD_LABEL).map(([m, label]) => (
                   <option key={m} value={m}>
                     {label} ({((taxRates?.[m as PaymentMethod]?.rate_bp ?? 0) / 100).toFixed(0)}%)
                   </option>
                 ))}
-              </select>
-            </label>
-            <NumberField
-              label="Amount (Rs, pre-tax)"
-              value={s.baseRupees}
-              onChange={(v) => updateSplit(i, { baseRupees: v })}
-            />
+              </Select>
+            </Field>
+            <Field label="Amount (Rs, pre-tax)" htmlFor={`settle-base-${i}`}>
+              <NumberInput id={`settle-base-${i}`} value={s.baseRupees} onChange={(v) => updateSplit(i, { baseRupees: v })} />
+            </Field>
             {s.method === "cash" && (
-              <NumberField
-                label="Tendered (Rs)"
-                value={s.tenderedRupees}
-                onChange={(v) => updateSplit(i, { tenderedRupees: v })}
-              />
+              <Field label="Tendered (Rs)" htmlFor={`settle-tendered-${i}`}>
+                <NumberInput id={`settle-tendered-${i}`} value={s.tenderedRupees} onChange={(v) => updateSplit(i, { tenderedRupees: v })} />
+              </Field>
             )}
-            <div className="text-sm text-neutral-400">
+            <div className="text-portal-sm text-ink-500">
               <p>Tax: {formatPaisa(splitPreviews[i].tax as Paisa)}</p>
               {s.method === "cash" && <p>Change: {formatPaisa(splitPreviews[i].change as Paisa)}</p>}
               {splits.length > 1 && (
-                <button
-                  onClick={() => setSplits((prev) => prev.filter((_, idx) => idx !== i))}
-                  className="text-red-400 underline"
-                >
+                <button onClick={() => setSplits((prev) => prev.filter((_, idx) => idx !== i))} className="text-danger hover:underline">
                   Remove
                 </button>
               )}
@@ -316,78 +333,67 @@ export default function SettlePage() {
           </div>
         ))}
 
-        <div className="mt-3 space-y-1 text-sm">
+        <div className="mt-3 space-y-1 text-portal-sm text-ink-700">
           <div className="flex justify-between">
             <span>Bill total (after discount/charges)</span>
-            <span>{formatPaisa(netBasePaisa as Paisa)}</span>
+            <Money paisa={netBasePaisa as Paisa} />
           </div>
           <div className="flex justify-between">
             <span>Tax (per split, summed)</span>
-            <span>{formatPaisa(splitTaxSum as Paisa)}</span>
+            <Money paisa={splitTaxSum as Paisa} />
           </div>
-          <div className="flex justify-between font-medium">
+          <div className="flex justify-between font-semibold text-ink-900">
             <span>Grand total</span>
-            <span>{formatPaisa((netBasePaisa + splitTaxSum) as Paisa)}</span>
+            <Money paisa={(netBasePaisa + splitTaxSum) as Paisa} />
           </div>
           {remainingPaisa !== 0 && (
-            <p className="text-amber-400">
-              {remainingPaisa > 0 ? "Remaining" : "Over by"}:{" "}
-              {formatPaisa(Math.abs(remainingPaisa) as Paisa)}
+            <p className="text-warning">
+              {remainingPaisa > 0 ? "Remaining" : "Over by"}: {formatPaisa(Math.abs(remainingPaisa) as Paisa)}
             </p>
           )}
         </div>
       </section>
 
-      {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
+      {error && <p className="mb-4 text-portal-sm text-danger">{error}</p>}
 
       <div className="flex gap-3">
-        <button
+        <Button
+          density="terminal"
+          variant="primary"
           onClick={submit}
           disabled={submitting || remainingPaisa !== 0}
-          className="flex-1 rounded-md bg-white py-3 font-medium text-neutral-950 disabled:opacity-40"
+          className="flex-1"
         >
           {submitting ? "Settling…" : "Settle"}
-        </button>
-        <button
-          onClick={() => setShowVoid(true)}
-          className="rounded-md border border-red-500/50 px-4 py-3 text-sm text-red-400"
-        >
+        </Button>
+        <Button density="terminal" variant="danger" onClick={() => setShowVoid(true)}>
           Void order
-        </button>
+        </Button>
       </div>
 
       {showVoid && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm rounded-md border border-neutral-800 bg-neutral-900 p-5">
-            <h3 className="mb-3 font-medium">Void order #{order.order_no}</h3>
-            <label className="mb-3 block">
-              <span className="mb-1 block text-xs text-neutral-400">Reason</span>
-              <select value={voidReason} onChange={(e) => setVoidReason(e.target.value)} className="input">
-                {VOID_REASONS.map((r) => (
-                  <option key={r.code} value={r.code}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="mb-4 block">
-              <span className="mb-1 block text-xs text-neutral-400">Note (optional)</span>
-              <input value={voidNote} onChange={(e) => setVoidNote(e.target.value)} className="input" />
-            </label>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setShowVoid(false)} className="px-4 py-2 text-sm text-neutral-400">
-                Cancel
-              </button>
-              <button
-                onClick={submitVoid}
-                disabled={submitting}
-                className="rounded-md bg-red-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-              >
-                {submitting ? "Voiding…" : "Confirm void"}
-              </button>
-            </div>
+        <Modal title={`Void order #${order.order_no}`} onClose={() => setShowVoid(false)}>
+          <Field label="Reason" htmlFor="settle-void-reason">
+            <Select id="settle-void-reason" value={voidReason} onChange={(e) => setVoidReason(e.target.value)}>
+              {VOID_REASONS.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Note (optional)" htmlFor="settle-void-note">
+            <Input id="settle-void-note" value={voidNote} onChange={(e) => setVoidNote(e.target.value)} />
+          </Field>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="ghost" density="terminal" onClick={() => setShowVoid(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" density="terminal" onClick={submitVoid} disabled={submitting}>
+              {submitting ? "Voiding…" : "Confirm void"}
+            </Button>
           </div>
-        </div>
+        </Modal>
       )}
 
       {needsApproval && (
@@ -404,25 +410,8 @@ export default function SettlePage() {
   );
 }
 
-function NumberField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
+function NumberInput({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs text-neutral-400">{label}</span>
-      <input
-        type="number"
-        step="0.01"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="input"
-      />
-    </label>
+    <Input id={id} type="number" step="0.01" inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} />
   );
 }

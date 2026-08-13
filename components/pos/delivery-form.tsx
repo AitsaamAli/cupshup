@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Field, Input } from "@/components/ui/Input";
 import { findCustomerByPhone, createCustomer, type Customer } from "@/lib/customers";
 
 /**
- * Customer phone lookup for delivery — Part 16. The delivery fee itself
- * is entered at settlement (Part 10's screen already has that field,
- * settle_order()'s p_delivery_fee_paisa) — this screen only needs to
- * identify who the order is for and where it's going before the cart
- * starts.
+ * Customer phone lookup for delivery. The delivery fee itself is
+ * entered at settlement (settle_order()'s p_delivery_fee_paisa) — this
+ * screen only needs to identify who the order is for and where it's
+ * going before the cart starts.
  */
 export function DeliveryForm({
   outletId,
@@ -59,43 +59,41 @@ export function DeliveryForm({
   }
 
   return (
-    <div className="mx-auto max-w-sm p-6">
-      <h1 className="mb-6 text-xl font-semibold">Delivery order</h1>
+    <div className="mx-auto max-w-sm bg-canvas p-6">
+      <h1 className="mb-6 text-terminal-lg font-semibold text-ink-900">Delivery order</h1>
 
       {!customer ? (
         <div className="space-y-3">
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Customer phone</span>
+          <Field label="Customer phone" htmlFor="delivery-phone">
             <div className="flex gap-2">
-              <input
+              <Input
+                id="delivery-phone"
+                inputMode="tel"
                 value={phone}
                 onChange={(e) => {
                   setPhone(e.target.value);
                   setNotFound(false);
                 }}
                 onKeyDown={(e) => e.key === "Enter" && lookup()}
-                className="input"
                 autoFocus
               />
-              <Button onClick={lookup} disabled={searching || !phone.trim()}>
+              <Button density="terminal" onClick={lookup} disabled={searching || !phone.trim()}>
                 {searching ? "…" : "Find"}
               </Button>
             </div>
-          </label>
+          </Field>
 
           {notFound && (
-            <div className="space-y-3 rounded-md border border-neutral-800 p-3">
-              <p className="text-sm text-neutral-400">New customer — add their details.</p>
-              <label className="block">
-                <span className="mb-1 block text-xs text-neutral-400">Name (optional)</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} className="input" />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs text-neutral-400">Delivery address</span>
-                <input value={address} onChange={(e) => setAddress(e.target.value)} className="input" />
-              </label>
-              {error && <p className="text-sm text-red-400">{error}</p>}
-              <Button variant="primary" onClick={confirmNewCustomer} className="w-full">
+            <div className="space-y-3 rounded-lg border border-line bg-surface p-3">
+              <p className="text-portal-sm text-ink-500">New customer — add their details.</p>
+              <Field label="Name (optional)" htmlFor="delivery-name">
+                <Input id="delivery-name" value={name} onChange={(e) => setName(e.target.value)} />
+              </Field>
+              <Field label="Delivery address" htmlFor="delivery-address-new">
+                <Input id="delivery-address-new" value={address} onChange={(e) => setAddress(e.target.value)} />
+              </Field>
+              {error && <p className="text-portal-sm text-danger">{error}</p>}
+              <Button variant="primary" density="terminal" onClick={confirmNewCustomer} className="w-full">
                 Save &amp; continue
               </Button>
             </div>
@@ -103,15 +101,15 @@ export function DeliveryForm({
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-sm text-neutral-300">
+          <p className="text-portal-sm text-ink-700">
             {customer.name ?? "Customer"} — {customer.phone}
           </p>
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Delivery address</span>
-            <input value={address} onChange={(e) => setAddress(e.target.value)} className="input" autoFocus />
-          </label>
+          <Field label="Delivery address" htmlFor="delivery-address">
+            <Input id="delivery-address" value={address} onChange={(e) => setAddress(e.target.value)} autoFocus />
+          </Field>
           <Button
             variant="primary"
+            density="terminal"
             className="w-full"
             disabled={!address.trim()}
             onClick={() => onReady(customer, address.trim())}

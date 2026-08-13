@@ -13,8 +13,8 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-neutral-800 py-10 text-center">
-      <p className="text-sm text-neutral-500">{message}</p>
+    <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-line py-10 text-center">
+      <p className="text-portal-sm text-ink-500">{message}</p>
       {action}
     </div>
   );

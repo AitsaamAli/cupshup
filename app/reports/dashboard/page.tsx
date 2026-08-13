@@ -30,6 +30,19 @@ import { HourlyHeatmap } from "@/components/reports/hourly-heatmap";
 import { PaymentMixChart } from "@/components/reports/payment-mix-chart";
 import { RevenueBarChart, type RevenueBarDatum } from "@/components/reports/revenue-bar-chart";
 import { ExportPanel } from "@/components/reports/export-panel";
+import { AppShell } from "@/components/ui/AppShell";
+import { Card } from "@/components/ui/Card";
+import { FilterBar } from "@/components/ui/FilterBar";
+
+const PORTAL_NAV = [
+  { label: "Dashboard", href: "/reports/dashboard" },
+  { label: "Master P&L", href: "/reports/pl" },
+  { label: "Menu", href: "/manage/menu" },
+  { label: "Inventory", href: "/manage/inventory" },
+  { label: "Purchases", href: "/manage/purchases" },
+  { label: "Expenses", href: "/manage/expenses" },
+  { label: "Business day", href: "/manage/day" },
+];
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 
@@ -51,7 +64,7 @@ function topN(rows: { label: string; revenuePaisa: number }[], n: number): Reven
  * real per-line cost (Part 09), rolled up through daily_pl.
  */
 export default function DashboardPage() {
-  const { staff, loading: staffLoading } = useStaffSession("manage");
+  const { staff, loading: staffLoading, lock } = useStaffSession("manage");
   const { day } = useBusinessDay(OUTLET_ID);
   const stock = useIngredientStock(OUTLET_ID);
 
@@ -141,24 +154,31 @@ export default function DashboardPage() {
 
   const lowStock = stock.rows.filter((r) => r.is_low);
 
-  if (staffLoading) return <div className="min-h-screen bg-neutral-950" />;
+  if (staffLoading) return <div className="min-h-screen bg-canvas" />;
 
   if (staff && !["owner", "manager", "supervisor"].includes(staff.role)) {
-    return <p className="p-8 text-neutral-400">Only Owner/Manager/Supervisor can view the dashboard.</p>;
+    return <p className="p-8 text-portal-sm text-ink-500">Only Owner/Manager/Supervisor can view the dashboard.</p>;
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 p-6 text-white">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold">Dashboard</h1>
+    <AppShell
+      density="portal"
+      nav={PORTAL_NAV}
+      crumbs={[{ label: "Reports" }, { label: "Dashboard" }]}
+      staff={staff}
+      dayStatus={day?.status === "open" ? "open" : "closed"}
+      onLock={lock}
+    >
+      <div className="flex items-center justify-between px-4 pt-4">
+        <h1 className="text-portal-xl font-semibold text-ink-900">Dashboard</h1>
         {staff?.role === "owner" && (
-          <Link href="/reports/pl" className="text-sm text-brand-400 hover:underline">
+          <Link href="/reports/pl" className="text-portal-sm text-brand-700 hover:underline">
             Master P&amp;L →
           </Link>
         )}
       </div>
 
-      <div className="mb-6">
+      <FilterBar>
         <DateRangePicker
           from={from}
           to={to}
@@ -167,69 +187,71 @@ export default function DashboardPage() {
             setTo(t);
           }}
         />
+      </FilterBar>
+
+      <div className="p-4">
+        {loading ? (
+          <p className="text-portal-sm text-ink-500">Loading…</p>
+        ) : (
+          <>
+            <section className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              <KpiTile label="Revenue (ex-GST)" value={<Money paisa={revenuePaisa} />} />
+              <KpiTile
+                label="GST collected"
+                value={<Money paisa={gstByClass.cash + gstByClass.digital} />}
+                hint={`Cash 16%: Rs ${(gstByClass.cash / 100).toFixed(2)} · Digital 8%: Rs ${(gstByClass.digital / 100).toFixed(2)}`}
+              />
+              <KpiTile label="Gross profit" value={<Money paisa={grossProfitPaisa} />} hint="Revenue − real COGS" />
+              <KpiTile label="Amortised expenses" value={<Money paisa={amortizedTotalPaisa} />} />
+              <KpiTile
+                label="Net profit"
+                value={<Money paisa={netProfitPaisa} className={netProfitPaisa < 0 ? "text-danger" : ""} />}
+              />
+              <KpiTile label="Orders" value={ordersCount} />
+              <KpiTile label="Average order value" value={<Money paisa={aov} />} />
+              <KpiTile
+                label="Avg. ticket time (today)"
+                value={avgTicketMinutes === null ? "—" : `${avgTicketMinutes.toFixed(1)} min`}
+                hint="Kitchen prep time, today's open day"
+              />
+              <KpiTile
+                label="Voids"
+                value={voidedOrders}
+                hint={voidedOrders > 0 ? `Value: Rs ${(voidedValuePaisa / 100).toFixed(2)}` : undefined}
+              />
+              <KpiTile label="Low stock items" value={lowStock.length} hint={lowStock.map((i) => i.name).join(", ") || undefined} />
+              <KpiTile label="COGS" value={<Money paisa={cogsPaisa} />} />
+            </section>
+
+            <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <Card className="p-4">
+                <h2 className="mb-3 text-portal-base font-semibold text-ink-900">Hourly sales (orders)</h2>
+                <HourlyHeatmap rows={hourly} />
+              </Card>
+              <Card className="p-4">
+                <h2 className="mb-3 text-portal-base font-semibold text-ink-900">Payment mix</h2>
+                <PaymentMixChart rows={paymentMix} />
+              </Card>
+            </section>
+
+            <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <Card className="p-4">
+                <h2 className="mb-3 text-portal-base font-semibold text-ink-900">Top items by revenue</h2>
+                <RevenueBarChart data={topItems} />
+              </Card>
+              <Card className="p-4">
+                <h2 className="mb-3 text-portal-base font-semibold text-ink-900">Category revenue</h2>
+                <RevenueBarChart data={topCategories} />
+              </Card>
+            </section>
+
+            <Card className="p-4">
+              <h2 className="mb-3 text-portal-base font-semibold text-ink-900">Export</h2>
+              <ExportPanel outletId={OUTLET_ID} from={from} to={to} />
+            </Card>
+          </>
+        )}
       </div>
-
-      {loading ? (
-        <p className="text-neutral-400">Loading…</p>
-      ) : (
-        <>
-          <section className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            <KpiTile label="Revenue (ex-GST)" value={<Money paisa={revenuePaisa} />} />
-            <KpiTile
-              label="GST collected"
-              value={<Money paisa={gstByClass.cash + gstByClass.digital} />}
-              hint={`Cash 16%: Rs ${(gstByClass.cash / 100).toFixed(2)} · Digital 8%: Rs ${(gstByClass.digital / 100).toFixed(2)}`}
-            />
-            <KpiTile label="Gross profit" value={<Money paisa={grossProfitPaisa} />} hint="Revenue − real COGS" />
-            <KpiTile label="Amortised expenses" value={<Money paisa={amortizedTotalPaisa} />} />
-            <KpiTile
-              label="Net profit"
-              value={<Money paisa={netProfitPaisa} className={netProfitPaisa < 0 ? "text-danger" : ""} />}
-            />
-            <KpiTile label="Orders" value={ordersCount} />
-            <KpiTile label="Average order value" value={<Money paisa={aov} />} />
-            <KpiTile
-              label="Avg. ticket time (today)"
-              value={avgTicketMinutes === null ? "—" : `${avgTicketMinutes.toFixed(1)} min`}
-              hint="Kitchen prep time, today's open day"
-            />
-            <KpiTile
-              label="Voids"
-              value={voidedOrders}
-              hint={voidedOrders > 0 ? `Value: Rs ${(voidedValuePaisa / 100).toFixed(2)}` : undefined}
-            />
-            <KpiTile label="Low stock items" value={lowStock.length} hint={lowStock.map((i) => i.name).join(", ") || undefined} />
-            <KpiTile label="COGS" value={<Money paisa={cogsPaisa} />} />
-          </section>
-
-          <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-              <h2 className="mb-3 font-medium">Hourly sales (orders)</h2>
-              <HourlyHeatmap rows={hourly} />
-            </div>
-            <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-              <h2 className="mb-3 font-medium">Payment mix</h2>
-              <PaymentMixChart rows={paymentMix} />
-            </div>
-          </section>
-
-          <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-              <h2 className="mb-3 font-medium">Top items by revenue</h2>
-              <RevenueBarChart data={topItems} />
-            </div>
-            <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-              <h2 className="mb-3 font-medium">Category revenue</h2>
-              <RevenueBarChart data={topCategories} />
-            </div>
-          </section>
-
-          <section className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-            <h2 className="mb-3 font-medium">Export</h2>
-            <ExportPanel outletId={OUTLET_ID} from={from} to={to} />
-          </section>
-        </>
-      )}
-    </main>
+    </AppShell>
   );
 }

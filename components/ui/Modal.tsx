@@ -32,16 +32,16 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="w-full max-w-sm rounded-md border border-neutral-800 bg-neutral-900 p-5 text-white"
+        className="w-full max-w-sm rounded-lg border border-line bg-surface p-5 text-ink-900 shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h3 id="modal-title" className="font-medium">
+          <h3 id="modal-title" className="text-portal-base font-semibold text-ink-900">
             {title}
           </h3>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="flex h-11 w-11 items-center justify-center text-neutral-500 hover:text-white"
+            className="flex h-11 w-11 items-center justify-center text-ink-500 hover:text-ink-900"
           >
             <CloseIcon />
           </button>

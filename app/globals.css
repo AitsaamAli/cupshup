@@ -1,55 +1,101 @@
 @import "tailwindcss";
 
 /* =====================================================================
-   Cup Shup POS — Design Tokens (Part 15, "Industrial Terminal")
-   This is a tool, not a marketing page: dense, high-contrast, dark-first
-   (a kitchen under bright service lighting reads a dark UI far better
-   than a bright white one), keyboard-first. Every colour, radius, and
-   shadow decision below exists to kill the "AI-generated" tells listed
-   in 15-design-system.md — no inline hex anywhere in a component; every
-   colour comes from one of these tokens.
+   Cup Shup POS — Design Tokens ("Pakistani Portal, Dual Density")
+   Replaces Part 15's dark-first "Industrial Terminal" system. Zameen.com's
+   design LANGUAGE (dense, card-based, thin borders, no shadows, small
+   disciplined type) — never Zameen's logo/wordmark/brand assets.
+
+   Two density modes share ONE token set — only spacing/type-scale/component
+   density differ between Portal (/manage/*, /reports/*) and Terminal
+   (/pos). KDS is the one deliberate exception and stays dark — a wall
+   screen read from 2 meters under bright kitchen lighting is a different
+   *device*, not a style preference, so it keeps its own dark scope below
+   rather than following the rest of the app into light mode.
+
+   Hex values for --brand-* are approximate (see
+   00-MASTER-DESIGN-PROMPT.md's own note) — verify against zameen.com's
+   actual picked colour and swap here; every component reads these
+   tokens, never an inline hex, so one edit here updates the whole app.
    ===================================================================== */
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand green — the one colour that means "primary action" or "positive
+     status." Never used decoratively, never repurposed. Refined palette
+     from the second design-benchmark pass (Toast/Square/Linear/Stripe) —
+     replaces the first pass's approximations. */
+  --brand-50: #e9f4ef;
+  --brand-100: #d2e9e0;
+  --brand-200: #a4d3c1;
+  --brand-300: #76bda2;
+  --brand-400: #489a78;
+  --brand-500: #1a7f5a;
+  --brand-600: #1a7f5a;
+  --brand-700: #146346;
+  --brand-800: #0f4a35;
+  --brand-900: #0a3325;
 
-  /* Brand green — primary actions ONLY. Everything else stays neutral,
-     so the one colour that means "do this" never has to compete for
-     attention. */
-  --brand-50: #effbf5;
-  --brand-100: #d7f4e4;
-  --brand-200: #afe8c9;
-  --brand-300: #7cd6a9;
-  --brand-400: #45bc85;
-  --brand-500: #22a06a;
-  --brand-600: #158257;
-  --brand-700: #12684a;
-  --brand-800: #11533c;
-  --brand-900: #0f4433;
-  --brand-950: #08271d;
+  /* Ink — text, in three weights. Never pure black; a hint of green in
+     the grey keeps it warm instead of clinical. */
+  --ink-900: #121a16;
+  --ink-700: #3a4744;
+  --ink-500: #6b7b75;
+  --ink-300: #9aa8a2;
 
-  /* Status colours carry their own fixed meaning everywhere in the app —
-     never repurposed for anything else. Red = void/danger. Amber =
-     waiting/needs attention. Green = ready/success (the same brand
-     green above — "ready" is a positive outcome, same family as
-     "primary action"). */
-  --status-danger: #ef4444;
-  --status-warning: #f59e0b;
-  --status-success: var(--brand-500);
-}
+  /* One border colour for the entire app. If two components look like
+     they have different borders, one of them is wrong. */
+  --line: #e2e7e4;
+  --surface: #ffffff;
+  --canvas: #f7f9f8;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Status — each colour has exactly one meaning, everywhere. Never the
+     ONLY signal — every status also carries an icon or text label
+     (colour-blind staff, and kitchen lighting washes colour out). */
+  --status-success: #1a7f5a;
+  --status-warning: #b8730a;
+  --status-danger: #b93e33;
+  --status-info: #26628f;
+
+  /* Portal type scale — 11/12/13/15/18/24/32 */
+  --text-portal-2xs: 0.6875rem;
+  --text-portal-xs: 0.75rem;
+  --text-portal-sm: 0.8125rem;
+  --text-portal-base: 0.9375rem;
+  --text-portal-lg: 1.125rem;
+  --text-portal-xl: 1.5rem;
+  --text-portal-2xl: 2rem;
+
+  /* Terminal type scale — 12/14/16/20/28, bigger: read at arm's length,
+     tapped in a hurry. */
+  --text-terminal-xs: 0.75rem;
+  --text-terminal-sm: 0.875rem;
+  --text-terminal-base: 1rem;
+  --text-terminal-lg: 1.25rem;
+  --text-terminal-xl: 1.75rem;
+
+  /* KDS type scale — 16/20/24/32/44, read from 2 metres away. */
+  --text-kds-sm: 1rem;
+  --text-kds-base: 1.25rem;
+  --text-kds-lg: 1.5rem;
+  --text-kds-xl: 2rem;
+  --text-kds-2xl: 2.75rem;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Legacy aliases kept so anything not yet retrofitted this pass
+     doesn't visually break — see docs/design-system.md's migration note. */
+  --background: var(--canvas);
+  --foreground: var(--ink-900);
+  --status-danger-legacy: var(--status-danger);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-urdu: var(--font-urdu), "Noto Nastaliq Urdu", serif;
 
   --color-brand-50: var(--brand-50);
   --color-brand-100: var(--brand-100);
@@ -61,35 +107,62 @@
   --color-brand-700: var(--brand-700);
   --color-brand-800: var(--brand-800);
   --color-brand-900: var(--brand-900);
-  --color-brand-950: var(--brand-950);
+
+  --color-ink-900: var(--ink-900);
+  --color-ink-700: var(--ink-700);
+  --color-ink-500: var(--ink-500);
+  --color-ink-300: var(--ink-300);
+  --color-line: var(--line);
+  --color-surface: var(--surface);
+  --color-canvas: var(--canvas);
 
   --color-danger: var(--status-danger);
   --color-warning: var(--status-warning);
   --color-success: var(--status-success);
+  --color-info: var(--status-info);
 
-  /* Cap Tailwind's own radius scale at the design direction's stated
-     max (4–6px). This isn't just a one-time find-replace on existing
-     markup — it means `rounded-xl`/`rounded-2xl` etc. physically CANNOT
-     render a soft 12–16px card radius in this project again, even if
-     someone reaches for the wrong class later. `rounded-full` is left
-     alone — that's a deliberate full-circle/pill shape (avatars,
-     status dots), not the "everything is a soft rounded card" tell. */
+  /* Density-specific type scales, registered under Tailwind v4's --text-*
+     namespace so `text-portal-sm` / `text-terminal-lg` / `text-kds-xl`
+     work as real utility classes, not just inert CSS variables. */
+  --text-portal-2xs: var(--text-portal-2xs);
+  --text-portal-xs: var(--text-portal-xs);
+  --text-portal-sm: var(--text-portal-sm);
+  --text-portal-base: var(--text-portal-base);
+  --text-portal-lg: var(--text-portal-lg);
+  --text-portal-xl: var(--text-portal-xl);
+  --text-portal-2xl: var(--text-portal-2xl);
+
+  --text-terminal-xs: var(--text-terminal-xs);
+  --text-terminal-sm: var(--text-terminal-sm);
+  --text-terminal-base: var(--text-terminal-base);
+  --text-terminal-lg: var(--text-terminal-lg);
+  --text-terminal-xl: var(--text-terminal-xl);
+
+  --text-kds-sm: var(--text-kds-sm);
+  --text-kds-base: var(--text-kds-base);
+  --text-kds-lg: var(--text-kds-lg);
+  --text-kds-xl: var(--text-kds-xl);
+  --text-kds-2xl: var(--text-kds-2xl);
+
+  /* 8px hard cap — no soft 12–16px "AI card" radius anywhere. rounded-full
+     is untouched (avatars, dots, badges — a deliberate full circle). */
   --radius-sm: 4px;
   --radius-md: 6px;
-  --radius-lg: 6px;
-  --radius-xl: 6px;
-  --radius-2xl: 6px;
-  --radius-3xl: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-2xl: 8px;
+  --radius-3xl: 8px;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--canvas);
+  color: var(--ink-900);
+  /* Explicit, not left to Tailwind's preflight inferring it from the
+     --font-sans theme key — belt and braces against ever seeing the
+     browser's default serif fallback again. */
+  font-family: var(--font-sans);
 }
 
-/* Respect the user's OS-level motion preference — every transition and
-   animation in the app collapses to instant. POS staff use this all
-   shift; decorative motion is friction, not delight, for them. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -99,45 +172,71 @@ body {
   }
 }
 
-/* A visible focus ring is not optional on a keyboard-first tool.
-   Tailwind's `outline-none` utility is never used anywhere in this
-   project for exactly this reason — this is the one global override
-   that guarantees it even if a component forgets. */
 :focus-visible {
-  outline: 2px solid var(--brand-500);
+  outline: 2px solid var(--brand-600);
   outline-offset: 2px;
 }
 
+/* Tabular numerals everywhere a number renders — mandatory per the design
+   direction, not just Money/DataTable's job to remember. */
+.tabular-nums,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* =====================================================================
+   KDS dark scope — the one deliberate light/dark split in the app.
+   Wrap the KDS screen root in data-mode="kds" and every token below
+   flips for everything inside it, without affecting the rest of the app.
+   ===================================================================== */
+[data-mode="kds"] {
+  --canvas: #14181a;
+  --surface: #1c2225;
+  --line: #2c3437;
+  --ink-900: #f2f5f3;
+  --ink-700: #c7d0cb;
+  --ink-500: #8b9891;
+  --ink-300: #5c6862;
+  background: var(--canvas);
+  color: var(--ink-900);
+  color-scheme: dark;
+}
+
+/* =====================================================================
+   RTL (Urdu) support — set dir="rtl" + lang="ur" on the subtree; layout
+   utilities that need explicit mirroring can key off [dir="rtl"].
+   ===================================================================== */
+[lang="ur"] {
+  font-family: var(--font-urdu);
+}
+
 @layer components {
-  /* Shared form-input style — every text input, select, and textarea in
-     the app uses this one class, so a token change here updates every
-     screen at once instead of needing 40 individual edits. */
   .input {
     width: 100%;
     border-radius: var(--radius-md);
-    border: 1px solid #404040;
-    background-color: #171717;
+    border: 1px solid var(--line);
+    background-color: var(--surface);
     padding: 0.5rem 0.75rem;
-    color: white;
-    font-size: 0.875rem;
-    min-height: 2.75rem; /* 44px — the minimum touch target every part of this app uses */
+    color: var(--ink-900);
+    font-size: var(--text-portal-base);
+    min-height: 2.75rem;
+  }
+  .input::placeholder {
+    color: var(--ink-300);
   }
   .input:focus-visible {
-    outline: 2px solid var(--brand-500);
+    outline: 2px solid var(--brand-600);
     outline-offset: 1px;
+  }
+  .input:disabled {
+    background-color: var(--canvas);
+    color: var(--ink-300);
+    cursor: not-allowed;
   }
 }
 
 /* =====================================================================
-   Print fallback — Part 19. This is the BACKUP path (§2a of the brief):
-   the local print agent (print-agent/) is the real one, avoiding
-   window.print()'s dialog entirely. When the agent isn't reachable,
-   components/print/PrintModal.tsx falls back to this — the exact same
-   `@media print { visibility: hidden }` technique the old system used,
-   but this time WITH the `@page` rule the old code was actually
-   missing. That missing @page rule — not the visibility technique
-   itself — is what printed on A4 with huge margins instead of on an
-   80mm roll; see docs/printing-and-pra-invoice.md §2 for the full story.
+   Print fallback — Part 19, unchanged by the design-system pass.
    ===================================================================== */
 @media print {
   body * {

@@ -15,10 +15,10 @@ export function KpiTile({
   hint?: string;
 }) {
   return (
-    <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-      <div className="text-sm text-neutral-400">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
-      {hint && <div className="mt-1 text-xs text-neutral-600">{hint}</div>}
+    <div className="rounded-lg border border-line bg-surface p-4">
+      <div className="text-portal-xs text-ink-500">{label}</div>
+      <div className="mt-1 text-portal-xl font-semibold tabular-nums text-ink-900">{value}</div>
+      {hint && <div className="mt-1 text-portal-2xs text-ink-300">{hint}</div>}
     </div>
   );
 }

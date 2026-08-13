@@ -37,7 +37,7 @@ export function NumericKeypad({
             disabled={disabled}
             aria-label={key === "⌫" ? "Backspace" : `Digit ${key}`}
             onClick={() => (key === "⌫" ? onBackspace() : value.length < maxLength && onDigit(key))}
-            className="flex h-14 w-14 items-center justify-center rounded-md border border-neutral-700 bg-neutral-900 text-lg tabular-nums text-white transition-colors hover:border-neutral-500 disabled:opacity-50"
+            className="flex h-14 w-14 items-center justify-center rounded-md border border-line bg-surface text-lg tabular-nums text-ink-900 transition-colors duration-[120ms] ease-out hover:bg-canvas disabled:opacity-50"
           >
             {key}
           </button>
@@ -56,7 +56,7 @@ export function KeypadDots({ length, max = 6 }: { length: number; max?: number }
         <span
           key={i}
           aria-hidden="true"
-          className={`h-3 w-3 rounded-full border border-neutral-500 ${i < length ? "bg-white" : "bg-transparent"}`}
+          className={`h-3 w-3 rounded-full border border-ink-500 ${i < length ? "bg-brand-600 border-brand-600" : "bg-transparent"}`}
         />
       ))}
     </div>

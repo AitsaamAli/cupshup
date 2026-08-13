@@ -127,8 +127,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 p-6 text-white">
-      <h1 className="mb-8 text-2xl font-semibold tracking-tight">Cup Shup</h1>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-canvas p-6">
+      <h1 className="mb-8 text-terminal-xl font-semibold tracking-tight text-ink-900">Cup Shup</h1>
 
       {!selected ? (
         <StaffGrid staffList={staffList} error={error} onSelect={selectStaff} />
@@ -158,13 +158,13 @@ function StaffGrid({
   onSelect: (person: StaffOption) => void;
 }) {
   if (staffList === null) {
-    return <p className="text-neutral-400">Loading staff…</p>;
+    return <p className="text-portal-sm text-ink-500">Loading staff…</p>;
   }
   if (error) {
-    return <p className="text-red-400">{error}</p>;
+    return <p className="text-portal-sm text-danger">{error}</p>;
   }
   if (staffList.length === 0) {
-    return <p className="text-neutral-400">No active staff found for this outlet.</p>;
+    return <p className="text-portal-sm text-ink-500">No active staff found for this outlet.</p>;
   }
 
   return (
@@ -173,10 +173,10 @@ function StaffGrid({
         <button
           key={person.id}
           onClick={() => onSelect(person)}
-          className="flex flex-col items-center justify-center rounded-md border border-neutral-700 bg-neutral-900 px-4 py-6 text-center transition hover:border-neutral-500 active:scale-95"
+          className="flex flex-col items-center justify-center rounded-md border border-line bg-surface px-4 py-6 text-center transition-transform duration-[120ms] ease-out hover:border-brand-300 active:scale-95"
         >
-          <span className="text-lg font-medium">{person.name}</span>
-          <span className="mt-1 text-sm text-neutral-400">{ROLE_LABEL[person.role]}</span>
+          <span className="text-terminal-base font-medium text-ink-900">{person.name}</span>
+          <span className="mt-1 text-portal-sm text-ink-500">{ROLE_LABEL[person.role]}</span>
         </button>
       ))}
     </div>
@@ -202,27 +202,50 @@ function PinPad({
   onSubmit: () => void;
   onBack: () => void;
 }) {
+  // The on-screen keypad is the primary input (touch-first, per the
+  // design brief), but this screen also runs on a desktop browser during
+  // development/testing — a physical keyboard should just work too,
+  // rather than silently doing nothing.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (submitting) return;
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        onDigit(e.key);
+      } else if (e.key === "Backspace") {
+        e.preventDefault();
+        onBackspace();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        onSubmit();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [submitting, onDigit, onBackspace, onSubmit]);
+
   return (
     <div className="flex w-full max-w-xs flex-col items-center">
-      <button onClick={onBack} className="mb-4 self-start text-sm text-neutral-400 hover:text-white">
+      <button onClick={onBack} className="mb-4 self-start text-portal-sm text-ink-500 hover:text-ink-900">
         ← Not {person.name}?
       </button>
 
-      <p className="mb-4 text-lg font-medium">{person.name}</p>
+      <p className="mb-4 text-terminal-base font-medium text-ink-900">{person.name}</p>
 
       <div className="mb-4">
         <KeypadDots length={pin.length} />
       </div>
 
-      {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+      {error && <p className="mb-3 text-portal-sm text-danger">{error}</p>}
 
       <NumericKeypad value={pin} disabled={submitting} onDigit={onDigit} onBackspace={onBackspace} />
 
       <Button
         variant="primary"
+        density="terminal"
         onClick={onSubmit}
         disabled={pin.length < 4 || submitting}
-        className="mt-6 w-full py-3"
+        className="mt-6 w-full"
       >
         {submitting ? "Checking…" : "Enter"}
       </Button>

@@ -185,7 +185,12 @@ function EntryForm({
   async function uploadReceipt(): Promise<string | undefined> {
     if (!receiptFile) return undefined;
     const supabase = createClient();
-    const path = `${categoryId}/${Date.now()}-${receiptFile.name}`;
+    // Outlet id must be the FIRST path segment — the storage RLS policy
+    // (0038_second_wave_storage_outlet_scoping.sql) checks
+    // (storage.foldername(name))[1] against the caller's own outlet, so a
+    // path that doesn't start with it would upload successfully but then
+    // be unreadable by anyone, including this same outlet.
+    const path = `${OUTLET_ID}/${categoryId}/${Date.now()}-${receiptFile.name}`;
     const { error } = await supabase.storage.from("expense-receipts").upload(path, receiptFile);
     if (error) throw new Error(`Receipt upload failed: ${error.message}`);
     const { data } = supabase.storage.from("expense-receipts").getPublicUrl(path);

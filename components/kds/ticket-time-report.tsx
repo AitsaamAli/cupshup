@@ -59,16 +59,16 @@ export function TicketTimeReport({
   return (
     <Modal title="Ticket time — today" onClose={onClose}>
       {loading ? (
-        <p className="text-sm text-neutral-400">Loading…</p>
+        <p className="text-portal-sm text-ink-500">Loading…</p>
       ) : (
-        <div className="flex flex-col gap-4 text-sm">
+        <div className="flex flex-col gap-4 text-portal-sm text-ink-900">
           <div>
-            <div className="text-neutral-400">Average ticket time</div>
-            <div className="text-2xl font-bold tabular-nums">{fmt(avgTicket)}</div>
+            <div className="text-ink-500">Average ticket time</div>
+            <div className="text-portal-xl font-bold tabular-nums">{fmt(avgTicket)}</div>
           </div>
 
           <div>
-            <div className="mb-1 text-neutral-400">By station</div>
+            <div className="mb-1 text-ink-500">By station</div>
             <ul className="flex flex-col gap-1">
               {STATIONS.map((s) => (
                 <li key={s.value} className="flex justify-between">
@@ -80,9 +80,9 @@ export function TicketTimeReport({
           </div>
 
           <div>
-            <div className="mb-1 text-neutral-400">By hour</div>
+            <div className="mb-1 text-ink-500">By hour</div>
             {hoursWithData.length === 0 ? (
-              <p className="text-neutral-500">No completed tickets yet today.</p>
+              <p className="text-ink-500">No completed tickets yet today.</p>
             ) : (
               <ul className="flex flex-col gap-1">
                 {hoursWithData.map(({ hour, minutes }) => (

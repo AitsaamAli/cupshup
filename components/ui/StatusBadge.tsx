@@ -2,10 +2,10 @@ type Status = "void" | "waiting" | "ready" | "neutral";
 
 const STATUS_CLASSES: Record<Status, string> = {
   // Fixed meanings, used nowhere else in the app for anything else:
-  void: "bg-danger/15 text-red-400",
-  waiting: "bg-warning/15 text-amber-400",
-  ready: "bg-brand-500/15 text-brand-400",
-  neutral: "bg-neutral-800 text-neutral-300",
+  void: "bg-danger/10 text-danger",
+  waiting: "bg-warning/10 text-warning",
+  ready: "bg-brand-50 text-brand-700",
+  neutral: "bg-canvas text-ink-500",
 };
 
 const STATUS_LABEL: Record<Status, string> = {

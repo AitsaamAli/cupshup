@@ -56,7 +56,12 @@ export default function PurchasesPage() {
   async function uploadInvoicePhoto(): Promise<string | undefined> {
     if (!invoiceFile) return undefined;
     const supabase = createClient();
-    const path = `${supplierId}/${Date.now()}-${invoiceFile.name}`;
+    // Outlet id must be the FIRST path segment — the storage RLS policy
+    // (0038_second_wave_storage_outlet_scoping.sql) checks
+    // (storage.foldername(name))[1] against the caller's own outlet, so a
+    // path that doesn't start with it would upload successfully but then
+    // be unreadable by anyone, including this same outlet.
+    const path = `${OUTLET_ID}/${supplierId}/${Date.now()}-${invoiceFile.name}`;
     const { error: uploadError } = await supabase.storage
       .from("purchase-invoices")
       .upload(path, invoiceFile);
