@@ -40,7 +40,7 @@ const PORTAL_NAV = [
 export default function MenuManagementPage() {
   const { staff, loading: staffLoading, lock } = useStaffSession("manage");
   const { day } = useBusinessDay(OUTLET_ID);
-  const { categories, items, currentPrices, loading: menuLoading, reload } = useMenu(OUTLET_ID);
+  const { categories, items, currentPrices, orderTypePrices, loading: menuLoading, reload } = useMenu(OUTLET_ID);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<MenuItem | "new" | null>(null);
@@ -166,6 +166,7 @@ export default function MenuManagementPage() {
         <PriceDialog
           item={priceItem}
           currentPricePaisa={currentPrices[priceItem.id]?.price_paisa ?? 0}
+          orderTypePrices={orderTypePrices[priceItem.id] ?? {}}
           onClose={() => setPriceItem(null)}
           onSaved={() => {
             setPriceItem(null);
@@ -406,14 +407,23 @@ function ItemFormDialog({
   );
 }
 
+const ORDER_TYPE_OVERRIDE_LABEL: Record<"takeaway" | "delivery", string> = {
+  takeaway: "Takeaway",
+  delivery: "Delivery",
+};
+
 function PriceDialog({
   item,
   currentPricePaisa,
+  orderTypePrices,
   onClose,
   onSaved,
 }: {
   item: MenuItem;
   currentPricePaisa: number;
+  /** This item's current override rows, keyed by order_type — from
+   * useMenu()'s orderTypePrices[item.id]. */
+  orderTypePrices: Partial<Record<"takeaway" | "delivery", { price_paisa: number }>>;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -444,29 +454,144 @@ function PriceDialog({
 
   return (
     <Modal onClose={onClose} title={`Change price — ${item.name}`}>
-      <div className="space-y-3">
-        <p className="text-portal-sm text-ink-500">
-          Current price: {formatPaisa(currentPricePaisa as Paisa)}
-        </p>
-        <Field label="New price (Rs)" htmlFor="new-price">
-          <Input id="new-price" type="number" step="0.01" value={newPriceRupees} onChange={(e) => setNewPriceRupees(e.target.value)} autoFocus />
-        </Field>
-        <p className="text-portal-xs text-ink-500">
-          This never overwrites the old price — it closes it out and starts a new one, so past
-          invoices keep showing what was actually charged.
-        </p>
+      <div className="space-y-4">
+        <div className="space-y-3">
+          <p className="text-portal-sm text-ink-500">
+            Current default price: {formatPaisa(currentPricePaisa as Paisa)}
+          </p>
+          <Field label="New default price (Rs)" htmlFor="new-price">
+            <Input id="new-price" type="number" step="0.01" value={newPriceRupees} onChange={(e) => setNewPriceRupees(e.target.value)} autoFocus />
+          </Field>
+          <p className="text-portal-xs text-ink-500">
+            This never overwrites the old price — it closes it out and starts a new one, so past
+            invoices keep showing what was actually charged.
+          </p>
 
-        {error && <p className="text-portal-sm text-danger">{error}</p>}
+          {error && <p className="text-portal-sm text-danger">{error}</p>}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="quiet" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={save} disabled={saving}>
-            {saving ? "Saving…" : "Confirm price"}
-          </Button>
+          <div className="flex justify-end gap-2">
+            <Button variant="quiet" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={save} disabled={saving}>
+              {saving ? "Saving…" : "Confirm price"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="border-t border-line pt-4">
+          <p className="mb-1 text-portal-xs font-medium uppercase tracking-wide text-ink-500">
+            Order-type overrides
+          </p>
+          <p className="mb-3 text-portal-xs text-ink-500">
+            Delivery/takeaway usually costs more to fulfil — packaging, rider, commission. Leave
+            blank to charge the default price for that order type.
+          </p>
+          <div className="space-y-3">
+            {(["takeaway", "delivery"] as const).map((ot) => (
+              <OrderTypeOverrideRow
+                key={ot}
+                itemId={item.id}
+                orderType={ot}
+                currentOverridePaisa={orderTypePrices[ot]?.price_paisa ?? null}
+                defaultPricePaisa={currentPricePaisa}
+                onSaved={onSaved}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </Modal>
+  );
+}
+
+function OrderTypeOverrideRow({
+  itemId,
+  orderType,
+  currentOverridePaisa,
+  defaultPricePaisa,
+  onSaved,
+}: {
+  itemId: string;
+  orderType: "takeaway" | "delivery";
+  currentOverridePaisa: number | null;
+  defaultPricePaisa: number;
+  onSaved: () => void;
+}) {
+  const [priceRupees, setPriceRupees] = useState(
+    currentOverridePaisa !== null ? String(currentOverridePaisa / 100) : ""
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function setOverride() {
+    const rupees = Number(priceRupees);
+    if (!Number.isFinite(rupees) || rupees < 0) {
+      setError("Enter a valid price.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const supabase = createClient();
+    const { error: saveError } = await supabase.rpc("set_item_order_type_price", {
+      p_item_id: itemId,
+      p_order_type: orderType,
+      p_price_paisa: rupeesToPaisa(rupees),
+    });
+    setSaving(false);
+    if (saveError) {
+      setError(saveError.message);
+      return;
+    }
+    onSaved();
+  }
+
+  async function clearOverride() {
+    setSaving(true);
+    setError(null);
+    const supabase = createClient();
+    const { error: saveError } = await supabase.rpc("clear_item_order_type_price", {
+      p_item_id: itemId,
+      p_order_type: orderType,
+    });
+    setSaving(false);
+    if (saveError) {
+      setError(saveError.message);
+      return;
+    }
+    setPriceRupees("");
+    onSaved();
+  }
+
+  return (
+    <div>
+      <div className="flex items-end gap-2">
+        <Field label={ORDER_TYPE_OVERRIDE_LABEL[orderType]} htmlFor={`override-${orderType}`}>
+          <Input
+            id={`override-${orderType}`}
+            type="number"
+            step="0.01"
+            placeholder={`Default: ${formatPaisa(defaultPricePaisa as Paisa)}`}
+            value={priceRupees}
+            onChange={(e) => setPriceRupees(e.target.value)}
+            className="w-36"
+          />
+        </Field>
+        <Button variant="secondary" onClick={setOverride} disabled={saving || !priceRupees}>
+          Set
+        </Button>
+        {currentOverridePaisa !== null && (
+          <Button variant="quiet" onClick={clearOverride} disabled={saving}>
+            Use default
+          </Button>
+        )}
+      </div>
+      {currentOverridePaisa !== null && (
+        <p className="mt-1 text-portal-xs text-ink-500">
+          Currently overridden: {formatPaisa(currentOverridePaisa as Paisa)}
+        </p>
+      )}
+      {error && <p className="mt-1 text-portal-xs text-danger">{error}</p>}
+    </div>
   );
 }

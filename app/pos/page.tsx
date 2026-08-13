@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStaffSession } from "@/lib/auth";
 import { useBusinessDay } from "@/lib/business-day";
-import { useMenu, type MenuItem, type Modifier } from "@/lib/menu";
+import { useMenu, priceForOrderType, type MenuItem, type Modifier } from "@/lib/menu";
 import { addItemsToOrder, type OrderType, type CartItem } from "@/lib/orders";
 import { useOfflineAwarePlaceOrder } from "@/lib/offline-orders";
 import { useOnlineStatus } from "@/lib/offline-network";
@@ -45,6 +45,7 @@ export default function PosPage() {
     categories,
     items,
     currentPrices,
+    orderTypePrices,
     modifierGroups,
     modifiers,
     itemModifierGroups,
@@ -125,7 +126,12 @@ export default function PosPage() {
 
   // ---- Cart mutations -----------------------------------------------------
   function addToCart(item: MenuItem, mods: SelectedModifier[], note: string, qty: number) {
-    const basePrice = currentPrices[item.id]?.price_paisa ?? 0;
+    // Part 22 §1 — a delivery/takeaway order can carry its own override
+    // price (packaging, rider payout, commission); falls back to the
+    // default the exact same way the server's current_price_paisa() does.
+    // This is display/cart-preview only — place_order() re-derives the
+    // real price independently regardless of what's shown here.
+    const basePrice = priceForOrderType(item.id, orderType, currentPrices, orderTypePrices);
     const modDelta = mods.reduce((s, m) => s + m.price_delta_paisa, 0);
     setCart((prev) => [
       ...prev,
@@ -309,7 +315,7 @@ export default function PosPage() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inCartBuilding, modifierSheetItem, voidDialogOpen, awaitingQtyDigit, pendingQty, currentPrices, itemModifierGroups]);
+  }, [inCartBuilding, modifierSheetItem, voidDialogOpen, awaitingQtyDigit, pendingQty, currentPrices, orderTypePrices, itemModifierGroups]);
 
   // ---- Render --------------------------------------------------------------
   if (staffLoading || dayLoading || menuLoading) {
@@ -363,6 +369,8 @@ export default function PosPage() {
               categories={categories}
               items={items}
               currentPrices={currentPrices}
+              orderTypePrices={orderTypePrices}
+              orderType={orderType}
               onSelect={selectItem}
               onVisibleItemsChange={setVisibleItems}
             />

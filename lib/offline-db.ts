@@ -32,6 +32,7 @@ export interface CachedMenu {
   categories: MenuCategory[];
   items: MenuItem[];
   currentPrices: Record<string, MenuItemPrice>;
+  orderTypePrices: Record<string, Partial<Record<OrderType, MenuItemPrice>>>;
   modifierGroups: ModifierGroup[];
   modifiers: Modifier[];
   itemModifierGroups: Record<string, string[]>;

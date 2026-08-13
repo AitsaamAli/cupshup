@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { castRows } from "@/lib/supabase/rows";
 import { offlineDb } from "@/lib/offline-db";
 import { isNetworkError } from "@/lib/offline-network";
+import type { OrderType } from "@/lib/orders";
 
 export interface MenuCategory {
   id: string;
@@ -33,6 +34,7 @@ export interface MenuItemPrice {
   price_paisa: number;
   effective_from: string;
   effective_to: string | null;
+  order_type: OrderType | null;
 }
 
 export interface ModifierGroup {
@@ -53,8 +55,16 @@ export interface Modifier {
 export interface MenuData {
   categories: MenuCategory[];
   items: MenuItem[];
-  /** Current (effective_to IS NULL) price per menu_item_id. */
+  /** Current (effective_to IS NULL) DEFAULT (order_type IS NULL) price
+   * per menu_item_id — unchanged meaning/shape from before order-type
+   * pricing existed. Order-type overrides live in `orderTypePrices`
+   * instead; use `priceForOrderType()` to read "the right price for
+   * this order type" rather than indexing either map directly. */
   currentPrices: Record<string, MenuItemPrice>;
+  /** Current (effective_to IS NULL) override price per menu_item_id per
+   * order_type — only present where an override actually exists; an
+   * item/order_type with no override simply has no entry here. */
+  orderTypePrices: Record<string, Partial<Record<OrderType, MenuItemPrice>>>;
   modifierGroups: ModifierGroup[];
   modifiers: Modifier[];
   /** menu_item_id -> the modifier_group ids attached to it. */
@@ -65,10 +75,29 @@ const EMPTY: MenuData = {
   categories: [],
   items: [],
   currentPrices: {},
+  orderTypePrices: {},
   modifierGroups: [],
   modifiers: [],
   itemModifierGroups: {},
 };
+
+/**
+ * Client-side mirror of current_price_paisa()'s fallback rule (Part 22
+ * §1, 0044_order_type_pricing.sql): an order-type override wins over the
+ * default when one exists for this exact order type, otherwise the
+ * default applies. Used for cart/menu display only — the server always
+ * re-derives the real price independently at place_order() time, this
+ * never needs to be authoritative.
+ */
+export function priceForOrderType(
+  itemId: string,
+  orderType: OrderType | null,
+  currentPrices: MenuData["currentPrices"],
+  orderTypePrices: MenuData["orderTypePrices"]
+): number {
+  const override = orderType ? orderTypePrices[itemId]?.[orderType] : undefined;
+  return override?.price_paisa ?? currentPrices[itemId]?.price_paisa ?? 0;
+}
 
 /**
  * Loads the full menu once, then keeps it live via Supabase Realtime: a
@@ -132,8 +161,13 @@ export function useMenu(outletId: string) {
     ]);
 
     const currentPrices: Record<string, MenuItemPrice> = {};
+    const orderTypePrices: MenuData["orderTypePrices"] = {};
     castRows<MenuItemPrice>(pricesRes.data).forEach((p) => {
-      currentPrices[p.menu_item_id] = p;
+      if (p.order_type === null) {
+        currentPrices[p.menu_item_id] = p;
+      } else {
+        (orderTypePrices[p.menu_item_id] ??= {})[p.order_type] = p;
+      }
     });
 
     const itemModifierGroups: Record<string, string[]> = {};
@@ -145,6 +179,7 @@ export function useMenu(outletId: string) {
       categories,
       items: castRows<MenuItem>(itemsRes.data),
       currentPrices,
+      orderTypePrices,
       modifierGroups: castRows<ModifierGroup>(groupsRes.data),
       modifiers: castRows<Modifier>(modifiersRes.data),
       itemModifierGroups,

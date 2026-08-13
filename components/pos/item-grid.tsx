@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { Money } from "@/components/ui/Money";
 import { KeyboardHint } from "@/components/ui/KeyboardHint";
-import type { MenuCategory, MenuItem } from "@/lib/menu";
+import { priceForOrderType, type MenuCategory, type MenuItem, type MenuData } from "@/lib/menu";
+import type { OrderType } from "@/lib/orders";
 import type { Paisa } from "@/lib/money";
 
 export interface SelectableItem {
@@ -30,12 +31,18 @@ export function ItemGrid({
   categories,
   items,
   currentPrices,
+  orderTypePrices,
+  orderType,
   onSelect,
   onVisibleItemsChange,
 }: {
   categories: MenuCategory[];
   items: MenuItem[];
-  currentPrices: Record<string, { price_paisa: number }>;
+  currentPrices: MenuData["currentPrices"];
+  /** Part 22 §1 — omit (or pass {}) where no order-type override
+   * pricing applies; every item then just shows its default price. */
+  orderTypePrices?: MenuData["orderTypePrices"];
+  orderType?: OrderType | null;
   onSelect: (item: MenuItem) => void;
   onVisibleItemsChange: (visible: SelectableItem[]) => void;
 }) {
@@ -51,9 +58,12 @@ export function ItemGrid({
     const matched = q ? pool.filter((i) => i.name.toLowerCase().includes(q) || i.sku?.toLowerCase() === q) : pool;
 
     return matched
-      .map((item) => ({ item, pricePaisa: currentPrices[item.id]?.price_paisa ?? 0 }))
+      .map((item) => ({
+        item,
+        pricePaisa: priceForOrderType(item.id, orderType ?? null, currentPrices, orderTypePrices ?? {}),
+      }))
       .sort((a, b) => a.item.name.localeCompare(b.item.name));
-  }, [sellable, categoryId, query, currentPrices]);
+  }, [sellable, categoryId, query, currentPrices, orderTypePrices, orderType]);
 
   useEffect(() => {
     onVisibleItemsChange(visible);
