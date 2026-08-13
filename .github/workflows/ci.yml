@@ -26,6 +26,15 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Generate route types
+        # `LayoutProps<"/">`/`PageProps<...>` (app/layout.tsx etc.) are
+        # Next.js 15's generated typed-route globals — they only exist
+        # under .next/types, written by `next build`/`next dev`. A fresh
+        # CI checkout has no .next yet, so tsc fails on "Cannot find name
+        # 'LayoutProps'" without this — `next typegen` writes just the
+        # types, without running a full build.
+        run: npx next typegen
+
       - name: Typecheck
         run: npx tsc --noEmit
 
