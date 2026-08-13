@@ -275,3 +275,35 @@ app/manage/` now returns nothing.
 not audited against the device matrix's stacked-card-table rule for
 these specific tables), no Urdu strings, no PWA-specific work. Same
 deferred list as §6 otherwise — nothing here closed any of those.
+
+## 8. Fourth pass — `/reports/pl` (Master P&L)
+
+Found by an actual screenshot: a user checked the live app right after
+§7 shipped and reported "design still not updated," on a screen that
+turned out to be this one — `/reports/pl` was explicitly named in §6 as
+NOT one of the three signature screens and still on Part 15's dark
+palette, so the report was correct, just a different page than the ones
+already done. (First checked whether it was a caching/deployment
+problem — it wasn't; the live deployment was confirmed correct, the page
+genuinely hadn't been touched yet.)
+
+Retrofitted the same way as §7: `AppShell` + `FilterBar` for the header/
+date-range, every hand-rolled `rounded-md border-neutral-800
+bg-neutral-900` section replaced with `Card`. Two supporting components
+needed their own fix, not just the page:
+- **`FlagsPanel`**: was already half-tokenised (`border-warning/40
+  bg-warning/10`) but still hardcoded `text-amber-300`/`text-red-300` on
+  top of it instead of `text-warning`/`text-danger` — inconsistent
+  within the same className string.
+- **`MenuMatrixChart`**: a Recharts scatter plot with every colour as a
+  literal hex (grid, axes, tooltip, and all four quadrant colours) —
+  same class of fix already done for `revenue-bar-chart`/
+  `payment-mix-chart` in §6, extended to the quadrant colours too:
+  `stars`→`var(--status-success)`, `plow_horses`→`var(--status-warning)`,
+  `puzzles`→`var(--status-info)`, `dogs`→`var(--status-danger)` — the
+  same fixed meanings those tokens already carry everywhere else,
+  instead of four arbitrary hex values.
+
+Verified: `tsc --noEmit` clean, `next build` clean (24/24 pages, same
+count), `vitest` 169/169, zero `neutral-`/`text-amber-`/`text-red-`/
+`text-emerald-` left in any of the three touched files.

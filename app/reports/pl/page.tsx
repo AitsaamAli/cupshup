@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useStaffSession } from "@/lib/auth";
+import { useBusinessDay } from "@/lib/business-day";
 import { useStockVariance } from "@/lib/inventory";
 import {
   fetchDailyPl,
@@ -37,8 +38,21 @@ import { DateRangePicker } from "@/components/reports/date-range-picker";
 import { FlagsPanel } from "@/components/reports/flags-panel";
 import { MenuMatrixChart } from "@/components/reports/menu-matrix-chart";
 import { QUADRANT_LABEL, QUADRANT_ACTION } from "@/lib/reports";
+import { AppShell } from "@/components/ui/AppShell";
+import { Card } from "@/components/ui/Card";
+import { FilterBar } from "@/components/ui/FilterBar";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
+
+const PORTAL_NAV = [
+  { label: "Dashboard", href: "/reports/dashboard" },
+  { label: "Master P&L", href: "/reports/pl" },
+  { label: "Menu", href: "/manage/menu" },
+  { label: "Inventory", href: "/manage/inventory" },
+  { label: "Purchases", href: "/manage/purchases" },
+  { label: "Expenses", href: "/manage/expenses" },
+  { label: "Business day", href: "/manage/day" },
+];
 
 /** YYYY-MM-DD -> YYYY-MM, for the month-wise rollup table. */
 function monthOf(businessDate: string): string {
@@ -56,7 +70,8 @@ function monthOf(businessDate: string): string {
  * message; it is not what actually keeps this data private.
  */
 export default function MasterPlPage() {
-  const { staff, loading: staffLoading } = useStaffSession("pl");
+  const { staff, loading: staffLoading, lock } = useStaffSession("pl");
+  const { day } = useBusinessDay(OUTLET_ID);
   const stockVariance = useStockVariance(OUTLET_ID);
 
   const [from, setFrom] = useState(startOfMonthIso());
@@ -148,10 +163,10 @@ export default function MasterPlPage() {
     ];
   }, [dailyPl, labourCost, cashVariance, stockVariance.rows, voidByCashier, revenueByDate, menuItems, ingredientCostTrend]);
 
-  if (staffLoading) return <div className="min-h-screen bg-neutral-950" />;
+  if (staffLoading) return <div className="min-h-screen bg-canvas" />;
 
   if (!isOwner) {
-    return <p className="p-8 text-neutral-400">Master P&amp;L is owner-only.</p>;
+    return <p className="p-8 text-portal-sm text-ink-500">Master P&amp;L is owner-only.</p>;
   }
 
   const menuColumns: DataTableColumn<(typeof menuItems)[number]>[] = [
@@ -272,10 +287,19 @@ export default function MasterPlPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-neutral-950 p-6 text-white">
-      <h1 className="mb-6 text-xl font-semibold">Master P&amp;L</h1>
+    <AppShell
+      density="portal"
+      nav={PORTAL_NAV}
+      crumbs={[{ label: "Reports" }, { label: "Master P&L" }]}
+      staff={staff}
+      dayStatus={day?.status === "open" ? "open" : "closed"}
+      onLock={lock}
+    >
+      <div className="px-4 pt-4">
+        <h1 className="text-portal-xl font-semibold text-ink-900">Master P&amp;L</h1>
+      </div>
 
-      <div className="mb-6">
+      <FilterBar>
         <DateRangePicker
           from={from}
           to={to}
@@ -284,98 +308,100 @@ export default function MasterPlPage() {
             setTo(t);
           }}
         />
-      </div>
+      </FilterBar>
 
-      {loading ? (
-        <p className="text-neutral-400">Loading…</p>
-      ) : (
-        <>
-          <section className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <KpiTile label="Revenue" value={<Money paisa={totalRevenuePaisa} />} />
-            <KpiTile label="Labour cost" value={<Money paisa={totalLabourPaisa} />} />
-            <KpiTile
-              label="Labour cost %"
-              value={labourPercent === null ? "—" : `${labourPercent.toFixed(1)}%`}
-              hint="Salaries + Daily Wages ÷ revenue"
-            />
-          </section>
-
-          <section className="mb-8 rounded-md border border-neutral-800 bg-neutral-900 p-4">
-            <h2 className="mb-3 font-medium">Flags</h2>
-            <FlagsPanel flags={flags} />
-          </section>
-
-          <section className="mb-8 rounded-md border border-neutral-800 bg-neutral-900 p-4">
-            <h2 className="mb-1 font-medium">Menu Engineering Matrix</h2>
-            <p className="mb-3 text-xs text-neutral-500">
-              Popularity (units sold) vs. margin %, split at this range&apos;s own median of each.
-            </p>
-            <MenuMatrixChart items={menuItems} />
-            <div className="mt-4 overflow-x-auto">
-              <DataTable columns={menuColumns} rows={menuItems} keyExtractor={(r) => r.menuItemId} />
-            </div>
-          </section>
-
-          <section className="mb-8 rounded-md border border-neutral-800 bg-neutral-900 p-4">
-            <h2 className="mb-3 font-medium">Stock variance (Rs)</h2>
-            <div className="overflow-x-auto">
-              <DataTable columns={stockColumns} rows={stockVariance.rows} keyExtractor={(r) => r.ingredient_id} />
-            </div>
-          </section>
-
-          <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-              <h2 className="mb-3 font-medium">Cash variance by cashier</h2>
-              <div className="overflow-x-auto">
-                <DataTable
-                  columns={cashColumns}
-                  rows={cashVariance}
-                  keyExtractor={(r) => `${r.cashier_id}-${r.business_date}`}
-                />
-              </div>
-            </div>
-            <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-              <h2 className="mb-3 font-medium">Void analysis by cashier</h2>
-              <div className="overflow-x-auto">
-                <DataTable
-                  columns={voidColumns}
-                  rows={voidByCashier}
-                  keyExtractor={(r) => `${r.cashier_id}-${r.business_date}`}
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="mb-8 rounded-md border border-neutral-800 bg-neutral-900 p-4">
-            <h2 className="mb-3 font-medium">Reprints</h2>
-            <p className="mb-3 text-xs text-neutral-500">
-              Empty until Part 19 wires an actual Print button to record_invoice_print().
-            </p>
-            <div className="overflow-x-auto">
-              <DataTable
-                columns={reprintColumns}
-                rows={reprintSummary}
-                keyExtractor={(r) => `${r.printed_by ?? "unknown"}-${r.business_date}`}
+      <div className="p-4">
+        {loading ? (
+          <p className="text-portal-sm text-ink-500">Loading…</p>
+        ) : (
+          <>
+            <section className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <KpiTile label="Revenue" value={<Money paisa={totalRevenuePaisa} />} />
+              <KpiTile label="Labour cost" value={<Money paisa={totalLabourPaisa} />} />
+              <KpiTile
+                label="Labour cost %"
+                value={labourPercent === null ? "—" : `${labourPercent.toFixed(1)}%`}
+                hint="Salaries + Daily Wages ÷ revenue"
               />
-            </div>
-          </section>
+            </section>
 
-          <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-              <h2 className="mb-3 font-medium">Day-wise P&amp;L</h2>
-              <div className="overflow-x-auto">
-                <DataTable columns={dailyColumns} rows={dailyPl} keyExtractor={(r) => r.business_date} />
+            <Card className="mb-8 p-4">
+              <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Flags</h2>
+              <FlagsPanel flags={flags} />
+            </Card>
+
+            <Card className="mb-8 p-4">
+              <h2 className="mb-1 text-portal-sm font-semibold text-ink-900">Menu Engineering Matrix</h2>
+              <p className="mb-3 text-portal-xs text-ink-500">
+                Popularity (units sold) vs. margin %, split at this range&apos;s own median of each.
+              </p>
+              <MenuMatrixChart items={menuItems} />
+              <div className="mt-4 overflow-x-auto">
+                <DataTable columns={menuColumns} rows={menuItems} keyExtractor={(r) => r.menuItemId} />
               </div>
-            </div>
-            <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-              <h2 className="mb-3 font-medium">Month-wise P&amp;L</h2>
+            </Card>
+
+            <Card className="mb-8 p-4">
+              <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Stock variance (Rs)</h2>
               <div className="overflow-x-auto">
-                <DataTable columns={dailyColumns} rows={monthlyPl} keyExtractor={(r) => r.business_date} />
+                <DataTable columns={stockColumns} rows={stockVariance.rows} keyExtractor={(r) => r.ingredient_id} />
               </div>
-            </div>
-          </section>
-        </>
-      )}
-    </main>
+            </Card>
+
+            <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <Card className="p-4">
+                <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Cash variance by cashier</h2>
+                <div className="overflow-x-auto">
+                  <DataTable
+                    columns={cashColumns}
+                    rows={cashVariance}
+                    keyExtractor={(r) => `${r.cashier_id}-${r.business_date}`}
+                  />
+                </div>
+              </Card>
+              <Card className="p-4">
+                <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Void analysis by cashier</h2>
+                <div className="overflow-x-auto">
+                  <DataTable
+                    columns={voidColumns}
+                    rows={voidByCashier}
+                    keyExtractor={(r) => `${r.cashier_id}-${r.business_date}`}
+                  />
+                </div>
+              </Card>
+            </section>
+
+            <Card className="mb-8 p-4">
+              <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Reprints</h2>
+              <p className="mb-3 text-portal-xs text-ink-500">
+                Empty until Part 19 wires an actual Print button to record_invoice_print().
+              </p>
+              <div className="overflow-x-auto">
+                <DataTable
+                  columns={reprintColumns}
+                  rows={reprintSummary}
+                  keyExtractor={(r) => `${r.printed_by ?? "unknown"}-${r.business_date}`}
+                />
+              </div>
+            </Card>
+
+            <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <Card className="p-4">
+                <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Day-wise P&amp;L</h2>
+                <div className="overflow-x-auto">
+                  <DataTable columns={dailyColumns} rows={dailyPl} keyExtractor={(r) => r.business_date} />
+                </div>
+              </Card>
+              <Card className="p-4">
+                <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Month-wise P&amp;L</h2>
+                <div className="overflow-x-auto">
+                  <DataTable columns={dailyColumns} rows={monthlyPl} keyExtractor={(r) => r.business_date} />
+                </div>
+              </Card>
+            </section>
+          </>
+        )}
+      </div>
+    </AppShell>
   );
 }
