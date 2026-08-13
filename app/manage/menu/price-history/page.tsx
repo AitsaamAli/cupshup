@@ -2,8 +2,24 @@
 
 import { useEffect, useState } from "react";
 import { useStaffSession } from "@/lib/auth";
+import { useBusinessDay } from "@/lib/business-day";
 import { createClient } from "@/lib/supabase/client";
 import { formatPaisa, type Paisa } from "@/lib/money";
+import { AppShell } from "@/components/ui/AppShell";
+import { Card } from "@/components/ui/Card";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
+
+const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
+
+const PORTAL_NAV = [
+  { label: "Dashboard", href: "/reports/dashboard" },
+  { label: "Master P&L", href: "/reports/pl" },
+  { label: "Menu", href: "/manage/menu" },
+  { label: "Inventory", href: "/manage/inventory" },
+  { label: "Purchases", href: "/manage/purchases" },
+  { label: "Expenses", href: "/manage/expenses" },
+  { label: "Business day", href: "/manage/day" },
+];
 
 interface PriceRow {
   id: string;
@@ -14,6 +30,13 @@ interface PriceRow {
   menu_items: { name: string } | null;
 }
 
+const columns: DataTableColumn<PriceRow>[] = [
+  { key: "item", header: "Item", sortValue: (r) => r.menu_items?.name ?? r.menu_item_id, render: (r) => r.menu_items?.name ?? r.menu_item_id },
+  { key: "price", header: "Price", numeric: true, render: (r) => formatPaisa(r.price_paisa as Paisa) },
+  { key: "from", header: "From", sortValue: (r) => r.effective_from, render: (r) => r.effective_from },
+  { key: "to", header: "To", render: (r) => <span className="text-ink-500">{r.effective_to ?? "current"}</span> },
+];
+
 /**
  * Owner-only price history: every price a menu item has ever had, and
  * the date range each one was actually charged. Matches Part 08's
@@ -23,7 +46,8 @@ interface PriceRow {
  * page just doesn't bother rendering for them.
  */
 export default function PriceHistoryPage() {
-  const { staff, loading: staffLoading } = useStaffSession("manage");
+  const { staff, loading: staffLoading, lock } = useStaffSession("manage");
+  const { day } = useBusinessDay(OUTLET_ID);
   const [rows, setRows] = useState<PriceRow[] | null>(null);
 
   useEffect(() => {
@@ -36,42 +60,32 @@ export default function PriceHistoryPage() {
       .then(({ data }) => setRows((data as unknown as PriceRow[]) ?? []));
   }, [staff]);
 
-  if (staffLoading) return <p className="p-8 text-neutral-400">Loading…</p>;
+  if (staffLoading) return <div className="min-h-screen bg-canvas" />;
 
   if (!staff || staff.role !== "owner") {
-    return <p className="p-8 text-neutral-400">Only the Owner can view price history.</p>;
+    return <p className="p-8 text-portal-sm text-ink-500">Only the Owner can view price history.</p>;
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 p-6 text-white">
-      <h1 className="mb-6 text-xl font-semibold">Price History</h1>
+    <AppShell
+      density="portal"
+      nav={PORTAL_NAV}
+      crumbs={[{ label: "Menu" }, { label: "Price history" }]}
+      staff={staff}
+      dayStatus={day?.status === "open" ? "open" : "closed"}
+      onLock={lock}
+    >
+      <div className="p-4">
+        <h1 className="mb-4 text-portal-xl font-semibold text-ink-900">Price History</h1>
 
-      {!rows ? (
-        <p className="text-neutral-400">Loading…</p>
-      ) : (
-        <table className="w-full text-left text-sm">
-          <thead className="text-neutral-500">
-            <tr>
-              <th className="pb-2 pr-4">Item</th>
-              <th className="pb-2 pr-4">Price</th>
-              <th className="pb-2 pr-4">From</th>
-              <th className="pb-2 pr-4">To</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-t border-neutral-800">
-                <td className="py-2 pr-4">{row.menu_items?.name ?? row.menu_item_id}</td>
-                <td className="py-2 pr-4">{formatPaisa(row.price_paisa as Paisa)}</td>
-                <td className="py-2 pr-4">{row.effective_from}</td>
-                <td className="py-2 pr-4 text-neutral-400">
-                  {row.effective_to ?? "current"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </main>
+        <Card className="p-4">
+          {!rows ? (
+            <p className="text-portal-sm text-ink-500">Loading…</p>
+          ) : (
+            <DataTable columns={columns} rows={rows} keyExtractor={(r) => r.id} emptyMessage="No price changes yet." />
+          )}
+        </Card>
+      </div>
+    </AppShell>
   );
 }

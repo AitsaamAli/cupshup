@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useStaffSession } from "@/lib/auth";
+import { useBusinessDay } from "@/lib/business-day";
 import { useIngredients } from "@/lib/inventory";
 import {
   useSuppliers,
@@ -13,9 +15,25 @@ import {
 } from "@/lib/purchases";
 import { formatPaisa, rupeesToPaisa, type Paisa } from "@/lib/money";
 import { createClient } from "@/lib/supabase/client";
+import { AppShell } from "@/components/ui/AppShell";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Field, Input, Select } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 const CAN_RECEIVE = new Set(["owner", "manager"]);
+
+const PORTAL_NAV = [
+  { label: "Dashboard", href: "/reports/dashboard" },
+  { label: "Master P&L", href: "/reports/pl" },
+  { label: "Menu", href: "/manage/menu" },
+  { label: "Inventory", href: "/manage/inventory" },
+  { label: "Purchases", href: "/manage/purchases" },
+  { label: "Expenses", href: "/manage/expenses" },
+  { label: "Business day", href: "/manage/day" },
+];
 
 type DraftLine = { ingredientId: string; qtyText: string; unitCostRupeesText: string };
 
@@ -26,7 +44,8 @@ type DraftLine = { ingredientId: string; qtyText: string; unitCostRupeesText: st
  * cost update all succeed together or none do.
  */
 export default function PurchasesPage() {
-  const { staff } = useStaffSession("manage");
+  const { staff, loading: staffLoading, lock } = useStaffSession("manage");
+  const { day } = useBusinessDay(OUTLET_ID);
   const { suppliers } = useSuppliers(OUTLET_ID);
   const ingredients = useIngredients(OUTLET_ID);
   const { purchases, loading, reload } = usePurchases(OUTLET_ID);
@@ -115,186 +134,190 @@ export default function PurchasesPage() {
     }
   }
 
+  const columns: DataTableColumn<Purchase>[] = [
+    {
+      key: "date",
+      header: "Date",
+      sortValue: (p) => p.created_at,
+      render: (p) => <span className="text-ink-500">{new Date(p.created_at).toLocaleDateString()}</span>,
+    },
+    {
+      key: "invoice",
+      header: "Invoice",
+      render: (p) => (
+        <>
+          {p.invoice_ref ?? "—"}
+          {p.invoice_photo_url && (
+            <a href={p.invoice_photo_url} target="_blank" rel="noreferrer" className="ml-2 text-brand-700 hover:underline">
+              photo
+            </a>
+          )}
+        </>
+      ),
+    },
+    { key: "total", header: "Total", align: "right", numeric: true, render: (p) => formatPaisa(p.total_paisa as Paisa) },
+    { key: "status", header: "Status", render: (p) => <span className="text-ink-500 capitalize">{p.payment_status}</span> },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      render: (p) => canReceive && <Button variant="quiet" onClick={() => setReturnFor(p)}>Return</Button>,
+    },
+  ];
+
+  if (staffLoading) return <div className="min-h-screen bg-canvas" />;
+
   return (
-    <main className="min-h-screen bg-neutral-950 p-6 text-white">
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Purchases (GRN)</h1>
-        <nav className="flex gap-4 text-sm text-neutral-300 underline">
-          <a href="/manage/suppliers">Suppliers</a>
-          <a href="/manage/purchases/prices">Price history &amp; alerts</a>
-        </nav>
-      </header>
+    <AppShell
+      density="portal"
+      nav={PORTAL_NAV}
+      crumbs={[{ label: "Purchases" }]}
+      staff={staff}
+      dayStatus={day?.status === "open" ? "open" : "closed"}
+      onLock={lock}
+    >
+      <div className="p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-portal-xl font-semibold text-ink-900">Purchases (GRN)</h1>
+          <nav className="flex gap-4 text-portal-sm text-brand-700">
+            <Link href="/manage/suppliers" className="hover:underline">
+              Suppliers
+            </Link>
+            <Link href="/manage/purchases/prices" className="hover:underline">
+              Price history &amp; alerts
+            </Link>
+          </nav>
+        </div>
 
-      {canReceive && (
-        <section className="mb-8 rounded-md border border-neutral-800 p-4">
-          <h2 className="mb-3 font-medium">Receive delivery</h2>
-          <div className="mb-3 grid grid-cols-3 gap-3">
-            <label className="block">
-              <span className="mb-1 block text-xs text-neutral-400">Supplier</span>
-              <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="input">
-                <option value="">Select…</option>
-                {suppliers
-                  .filter((s) => s.active)
-                  .map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-neutral-400">Invoice reference</span>
-              <input value={invoiceRef} onChange={(e) => setInvoiceRef(e.target.value)} className="input" />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-neutral-400">Invoice photo</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setInvoiceFile(e.target.files?.[0] ?? null)}
-                className="text-sm text-neutral-400"
-              />
-            </label>
-          </div>
-
-          <div className="mb-3 space-y-2">
-            {lines.map((line, i) => (
-              <div key={i} className="grid grid-cols-4 items-end gap-2">
-                <label className="block">
-                  <span className="mb-1 block text-xs text-neutral-400">Ingredient</span>
-                  <select
-                    value={line.ingredientId}
-                    onChange={(e) => updateLine(i, { ingredientId: e.target.value })}
-                    className="input"
-                  >
-                    <option value="">Select…</option>
-                    {ingredients.map((ing) => (
-                      <option key={ing.id} value={ing.id}>
-                        {ing.name} ({ing.unit})
+        {canReceive && (
+          <Card className="mb-8 p-4">
+            <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Receive delivery</h2>
+            <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Field label="Supplier" htmlFor="grn-supplier">
+                <Select id="grn-supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+                  <option value="">Select…</option>
+                  {suppliers
+                    .filter((s) => s.active)
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
                       </option>
                     ))}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs text-neutral-400">Qty</span>
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={line.qtyText}
-                    onChange={(e) => updateLine(i, { qtyText: e.target.value })}
-                    className="input"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs text-neutral-400">Unit cost (Rs)</span>
-                  <input
+                </Select>
+              </Field>
+              <Field label="Invoice reference" htmlFor="grn-invoice-ref">
+                <Input id="grn-invoice-ref" value={invoiceRef} onChange={(e) => setInvoiceRef(e.target.value)} />
+              </Field>
+              <Field label="Invoice photo" htmlFor="grn-invoice-file">
+                <input
+                  id="grn-invoice-file"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setInvoiceFile(e.target.files?.[0] ?? null)}
+                  className="text-portal-sm text-ink-500"
+                />
+              </Field>
+            </div>
+
+            <div className="mb-3 space-y-2">
+              {lines.map((line, i) => (
+                <div key={i} className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4">
+                  <Field label="Ingredient" htmlFor={`grn-line-ing-${i}`}>
+                    <Select
+                      id={`grn-line-ing-${i}`}
+                      value={line.ingredientId}
+                      onChange={(e) => updateLine(i, { ingredientId: e.target.value })}
+                    >
+                      <option value="">Select…</option>
+                      {ingredients.map((ing) => (
+                        <option key={ing.id} value={ing.id}>
+                          {ing.name} ({ing.unit})
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Qty" htmlFor={`grn-line-qty-${i}`}>
+                    <Input
+                      id={`grn-line-qty-${i}`}
+                      type="number"
+                      step="0.001"
+                      value={line.qtyText}
+                      onChange={(e) => updateLine(i, { qtyText: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Unit cost (Rs)" htmlFor={`grn-line-cost-${i}`}>
+                    <Input
+                      id={`grn-line-cost-${i}`}
+                      type="number"
+                      step="0.01"
+                      value={line.unitCostRupeesText}
+                      onChange={(e) => updateLine(i, { unitCostRupeesText: e.target.value })}
+                    />
+                  </Field>
+                  {lines.length > 1 && (
+                    <Button
+                      variant="quiet"
+                      className="text-danger hover:text-danger"
+                      onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <Button
+                variant="quiet"
+                onClick={() => setLines((prev) => [...prev, { ingredientId: "", qtyText: "", unitCostRupeesText: "" }])}
+              >
+                + Add line
+              </Button>
+            </div>
+
+            <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Field label="Payment status" htmlFor="grn-payment-status">
+                <Select
+                  id="grn-payment-status"
+                  value={paymentStatus}
+                  onChange={(e) => setPaymentStatus(e.target.value as typeof paymentStatus)}
+                >
+                  <option value="credit">Credit</option>
+                  <option value="partial">Partial</option>
+                  <option value="paid">Paid</option>
+                </Select>
+              </Field>
+              {paymentStatus !== "credit" && (
+                <Field label="Amount paid (Rs)" htmlFor="grn-amount-paid">
+                  <Input
+                    id="grn-amount-paid"
                     type="number"
                     step="0.01"
-                    value={line.unitCostRupeesText}
-                    onChange={(e) => updateLine(i, { unitCostRupeesText: e.target.value })}
-                    className="input"
+                    value={amountPaidRupees}
+                    onChange={(e) => setAmountPaidRupees(e.target.value)}
                   />
-                </label>
-                {lines.length > 1 && (
-                  <button
-                    onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
-                    className="text-sm text-red-400 underline"
-                  >
-                    Remove
-                  </button>
-                )}
+                </Field>
+              )}
+              <div className="flex items-end text-portal-sm text-ink-700">
+                Grand total: <span className="ml-2 font-medium text-ink-900">{formatPaisa(grandTotalPaisa as Paisa)}</span>
               </div>
-            ))}
-            <button
-              onClick={() => setLines((prev) => [...prev, { ingredientId: "", qtyText: "", unitCostRupeesText: "" }])}
-              className="text-sm text-neutral-400 underline"
-            >
-              + Add line
-            </button>
-          </div>
-
-          <div className="mb-3 grid grid-cols-3 gap-3">
-            <label className="block">
-              <span className="mb-1 block text-xs text-neutral-400">Payment status</span>
-              <select
-                value={paymentStatus}
-                onChange={(e) => setPaymentStatus(e.target.value as typeof paymentStatus)}
-                className="input"
-              >
-                <option value="credit">Credit</option>
-                <option value="partial">Partial</option>
-                <option value="paid">Paid</option>
-              </select>
-            </label>
-            {paymentStatus !== "credit" && (
-              <label className="block">
-                <span className="mb-1 block text-xs text-neutral-400">Amount paid (Rs)</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={amountPaidRupees}
-                  onChange={(e) => setAmountPaidRupees(e.target.value)}
-                  className="input"
-                />
-              </label>
-            )}
-            <div className="flex items-end text-sm text-neutral-300">
-              Grand total: <span className="ml-2 font-medium">{formatPaisa(grandTotalPaisa as Paisa)}</span>
             </div>
-          </div>
 
-          {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+            {error && <p className="mb-3 text-portal-sm text-danger">{error}</p>}
 
-          <button
-            onClick={submitGrn}
-            disabled={saving}
-            className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
-          >
-            {saving ? "Saving…" : "Record delivery"}
-          </button>
-        </section>
-      )}
+            <Button variant="primary" onClick={submitGrn} disabled={saving}>
+              {saving ? "Saving…" : "Record delivery"}
+            </Button>
+          </Card>
+        )}
 
-      <h2 className="mb-3 font-medium">Recent purchases</h2>
-      {loading ? (
-        <p className="text-neutral-400">Loading…</p>
-      ) : (
-        <table className="w-full text-left text-sm">
-          <thead className="text-neutral-500">
-            <tr>
-              <th className="pb-2 pr-4">Date</th>
-              <th className="pb-2 pr-4">Invoice</th>
-              <th className="pb-2 pr-4">Total</th>
-              <th className="pb-2 pr-4">Status</th>
-              <th className="pb-2 pr-4"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {purchases.map((p) => (
-              <tr key={p.id} className="border-t border-neutral-800">
-                <td className="py-2 pr-4 text-neutral-400">{new Date(p.created_at).toLocaleDateString()}</td>
-                <td className="py-2 pr-4">
-                  {p.invoice_ref ?? "—"}
-                  {p.invoice_photo_url && (
-                    <a href={p.invoice_photo_url} target="_blank" rel="noreferrer" className="ml-2 underline">
-                      photo
-                    </a>
-                  )}
-                </td>
-                <td className="py-2 pr-4">{formatPaisa(p.total_paisa as Paisa)}</td>
-                <td className="py-2 pr-4 capitalize text-neutral-400">{p.payment_status}</td>
-                <td className="py-2 pr-4">
-                  {canReceive && (
-                    <button onClick={() => setReturnFor(p)} className="text-neutral-400 underline">
-                      Return
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+        <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Recent purchases</h2>
+        <Card className="p-4">
+          {loading ? (
+            <p className="text-portal-sm text-ink-500">Loading…</p>
+          ) : (
+            <DataTable columns={columns} rows={purchases} keyExtractor={(p) => p.id} emptyMessage="No purchases yet." />
+          )}
+        </Card>
+      </div>
 
       {returnFor && (
         <ReturnDialog
@@ -307,7 +330,7 @@ export default function PurchasesPage() {
           }}
         />
       )}
-    </main>
+    </AppShell>
   );
 }
 
@@ -347,44 +370,34 @@ function ReturnDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-md border border-neutral-800 bg-neutral-900 p-5 text-white">
-        <h3 className="mb-4 font-medium">Return goods — invoice {purchase.invoice_ref ?? purchase.id.slice(0, 8)}</h3>
-        <div className="space-y-3">
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Ingredient</span>
-            <select value={ingredientId} onChange={(e) => setIngredientId(e.target.value)} className="input">
-              <option value="">Select…</option>
-              {ingredients.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name} ({i.unit})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Quantity returned</span>
-            <input type="number" step="0.001" value={qty} onChange={(e) => setQty(e.target.value)} className="input" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Reason</span>
-            <input value={reason} onChange={(e) => setReason(e.target.value)} className="input" />
-          </label>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={onClose} className="rounded-md px-4 py-2 text-sm text-neutral-400">
-              Cancel
-            </button>
-            <button
-              onClick={submit}
-              disabled={saving}
-              className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Confirm return"}
-            </button>
-          </div>
+    <Modal title={`Return goods — invoice ${purchase.invoice_ref ?? purchase.id.slice(0, 8)}`} onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Ingredient" htmlFor="return-ingredient">
+          <Select id="return-ingredient" value={ingredientId} onChange={(e) => setIngredientId(e.target.value)}>
+            <option value="">Select…</option>
+            {ingredients.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name} ({i.unit})
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Quantity returned" htmlFor="return-qty">
+          <Input id="return-qty" type="number" step="0.001" value={qty} onChange={(e) => setQty(e.target.value)} />
+        </Field>
+        <Field label="Reason" htmlFor="return-reason">
+          <Input id="return-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+        </Field>
+        {error && <p className="text-portal-sm text-danger">{error}</p>}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="quiet" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={submit} disabled={saving}>
+            {saving ? "Saving…" : "Confirm return"}
+          </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

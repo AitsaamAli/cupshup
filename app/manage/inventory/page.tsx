@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useStaffSession } from "@/lib/auth";
+import { useBusinessDay } from "@/lib/business-day";
 import {
   useIngredientStock,
   logWastage,
@@ -10,11 +12,26 @@ import {
   type IngredientStockRow,
 } from "@/lib/inventory";
 import { formatPaisa, rupeesToPaisa, type Paisa } from "@/lib/money";
+import { AppShell } from "@/components/ui/AppShell";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Field, Input, Select } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 const CAN_PURCHASE = new Set(["owner", "manager"]);
 const CAN_LOG_WASTAGE = new Set(["owner", "manager", "supervisor", "chef", "kitchen", "barista"]);
+
+const PORTAL_NAV = [
+  { label: "Dashboard", href: "/reports/dashboard" },
+  { label: "Master P&L", href: "/reports/pl" },
+  { label: "Menu", href: "/manage/menu" },
+  { label: "Inventory", href: "/manage/inventory" },
+  { label: "Purchases", href: "/manage/purchases" },
+  { label: "Expenses", href: "/manage/expenses" },
+  { label: "Business day", href: "/manage/day" },
+];
 
 /**
  * Inventory overview — Part 11. Current stock is always the
@@ -23,7 +40,8 @@ const CAN_LOG_WASTAGE = new Set(["owner", "manager", "supervisor", "chef", "kitc
  * wastage entry, or count correction changes anything.
  */
 export default function InventoryPage() {
-  const { staff } = useStaffSession("manage");
+  const { staff, loading: staffLoading, lock } = useStaffSession("manage");
+  const { day } = useBusinessDay(OUTLET_ID);
   const { rows, loading, reload } = useIngredientStock(OUTLET_ID);
   const [wastageFor, setWastageFor] = useState<IngredientStockRow | null>(null);
   const [purchaseFor, setPurchaseFor] = useState<IngredientStockRow | null>(null);
@@ -32,67 +50,104 @@ export default function InventoryPage() {
   const canLogWastage = !!staff && CAN_LOG_WASTAGE.has(staff.role);
   const lowStockCount = rows.filter((r) => r.is_low).length;
 
-  if (loading) return <p className="p-8 text-neutral-400">Loading inventory…</p>;
+  const columns: DataTableColumn<IngredientStockRow>[] = [
+    { key: "name", header: "Ingredient", sortValue: (r) => r.name, render: (r) => r.name },
+    {
+      key: "stock",
+      header: "Stock",
+      align: "right",
+      numeric: true,
+      sortValue: (r) => r.current_stock,
+      render: (r) => (
+        <span className={r.is_low ? "text-warning" : "text-ink-900"}>
+          {r.current_stock} {r.unit}
+        </span>
+      ),
+    },
+    {
+      key: "min",
+      header: "Min",
+      align: "right",
+      numeric: true,
+      render: (r) => (
+        <span className="text-ink-500">
+          {r.min_stock} {r.unit}
+        </span>
+      ),
+    },
+    {
+      key: "cost",
+      header: "Avg cost",
+      align: "right",
+      numeric: true,
+      render: (r) => (
+        <span className="text-ink-500">
+          {formatPaisa(r.moving_avg_cost_paisa as Paisa)}/{r.unit}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      render: (r) => (
+        <div className="flex justify-end gap-3">
+          {canLogWastage && (
+            <Button variant="quiet" onClick={() => setWastageFor(r)}>
+              Log wastage
+            </Button>
+          )}
+          {canPurchase && (
+            <Button variant="quiet" onClick={() => setPurchaseFor(r)}>
+              Record purchase
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  if (staffLoading) return <div className="min-h-screen bg-canvas" />;
 
   return (
-    <main className="min-h-screen bg-neutral-950 p-6 text-white">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Inventory</h1>
-          <p className="text-sm text-neutral-400">{staff?.name} — {staff?.role}</p>
+    <AppShell
+      density="portal"
+      nav={PORTAL_NAV}
+      crumbs={[{ label: "Inventory" }]}
+      staff={staff}
+      dayStatus={day?.status === "open" ? "open" : "closed"}
+      onLock={lock}
+    >
+      <div className="p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-portal-xl font-semibold text-ink-900">Inventory</h1>
+          <nav className="flex gap-4 text-portal-sm text-brand-700">
+            <Link href="/manage/inventory/recipes" className="hover:underline">
+              Recipes
+            </Link>
+            <Link href="/manage/inventory/count" className="hover:underline">
+              Physical count
+            </Link>
+            <Link href="/manage/inventory/variance" className="hover:underline">
+              Variance report
+            </Link>
+          </nav>
         </div>
-        <nav className="flex gap-4 text-sm text-neutral-300 underline">
-          <a href="/manage/inventory/recipes">Recipes</a>
-          <a href="/manage/inventory/count">Physical count</a>
-          <a href="/manage/inventory/variance">Variance report</a>
-        </nav>
-      </header>
 
-      {lowStockCount > 0 && (
-        <p className="mb-4 rounded-md border border-amber-500/50 bg-amber-500/10 px-4 py-2 text-sm text-amber-300">
-          {lowStockCount} ingredient{lowStockCount > 1 ? "s" : ""} at or below minimum stock
-        </p>
-      )}
+        {lowStockCount > 0 && (
+          <p className="mb-4 rounded-md border border-warning/50 bg-warning/10 px-4 py-2 text-portal-sm text-warning">
+            {lowStockCount} ingredient{lowStockCount > 1 ? "s" : ""} at or below minimum stock
+          </p>
+        )}
 
-      <table className="w-full text-left text-sm">
-        <thead className="text-neutral-500">
-          <tr>
-            <th className="pb-2 pr-4">Ingredient</th>
-            <th className="pb-2 pr-4">Stock</th>
-            <th className="pb-2 pr-4">Min</th>
-            <th className="pb-2 pr-4">Avg cost</th>
-            <th className="pb-2 pr-4"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="border-t border-neutral-800">
-              <td className="py-2 pr-4">{row.name}</td>
-              <td className={`py-2 pr-4 tabular-nums ${row.is_low ? "text-amber-400" : ""}`}>
-                {row.current_stock} {row.unit}
-              </td>
-              <td className="py-2 pr-4 text-neutral-500">
-                {row.min_stock} {row.unit}
-              </td>
-              <td className="py-2 pr-4 text-neutral-400">
-                {formatPaisa(row.moving_avg_cost_paisa as Paisa)}/{row.unit}
-              </td>
-              <td className="py-2 pr-4 text-right">
-                {canLogWastage && (
-                  <button onClick={() => setWastageFor(row)} className="mr-3 text-neutral-400 underline">
-                    Log wastage
-                  </button>
-                )}
-                {canPurchase && (
-                  <button onClick={() => setPurchaseFor(row)} className="text-neutral-400 underline">
-                    Record purchase
-                  </button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        <Card className="p-4">
+          {loading ? (
+            <p className="text-portal-sm text-ink-500">Loading inventory…</p>
+          ) : (
+            <DataTable columns={columns} rows={rows} keyExtractor={(r) => r.id} emptyMessage="No ingredients yet." />
+          )}
+        </Card>
+      </div>
 
       {wastageFor && (
         <WastageDialog
@@ -114,7 +169,7 @@ export default function InventoryPage() {
           }}
         />
       )}
-    </main>
+    </AppShell>
   );
 }
 
@@ -154,26 +209,19 @@ function WastageDialog({
   return (
     <Modal title={`Log wastage — ${ingredient.name}`} onClose={onClose}>
       <div className="space-y-3">
-        <Field label="Reason">
-          <select value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} className="input">
+        <Field label="Reason" htmlFor="wastage-reason">
+          <Select id="wastage-reason" value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
             {WASTAGE_REASONS.map((r) => (
               <option key={r.code} value={r.code}>
                 {r.label}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
-        <Field label={`Quantity (${ingredient.unit})`}>
-          <input
-            type="number"
-            step="0.001"
-            value={qty}
-            onChange={(e) => setQty(e.target.value)}
-            className="input"
-            autoFocus
-          />
+        <Field label={`Quantity (${ingredient.unit})`} htmlFor="wastage-qty">
+          <Input id="wastage-qty" type="number" step="0.001" value={qty} onChange={(e) => setQty(e.target.value)} autoFocus />
         </Field>
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-portal-sm text-danger">{error}</p>}
         <DialogActions onCancel={onClose} onConfirm={submit} saving={saving} label="Log wastage" />
       </div>
     </Modal>
@@ -222,42 +270,26 @@ function PurchaseDialog({
   return (
     <Modal title={`Record purchase — ${ingredient.name}`} onClose={onClose}>
       <div className="space-y-3">
-        <Field label={`Quantity received (${ingredient.unit})`}>
-          <input
-            type="number"
-            step="0.001"
-            value={qty}
-            onChange={(e) => setQty(e.target.value)}
-            className="input"
-            autoFocus
-          />
+        <Field label={`Quantity received (${ingredient.unit})`} htmlFor="purchase-qty">
+          <Input id="purchase-qty" type="number" step="0.001" value={qty} onChange={(e) => setQty(e.target.value)} autoFocus />
         </Field>
-        <Field label={`Unit cost (Rs / ${ingredient.unit})`}>
-          <input
+        <Field label={`Unit cost (Rs / ${ingredient.unit})`} htmlFor="purchase-cost">
+          <Input
+            id="purchase-cost"
             type="number"
             step="0.01"
             value={unitCostRupees}
             onChange={(e) => setUnitCostRupees(e.target.value)}
-            className="input"
           />
         </Field>
-        <p className="text-xs text-neutral-500">
+        <p className="text-portal-xs text-ink-500">
           Updates the ingredient&apos;s average cost as a weighted average of what was already on
           hand and what just arrived.
         </p>
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-portal-sm text-danger">{error}</p>}
         <DialogActions onCancel={onClose} onConfirm={submit} saving={saving} label="Record purchase" />
       </div>
     </Modal>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs text-neutral-400">{label}</span>
-      {children}
-    </label>
   );
 }
 
@@ -274,16 +306,12 @@ function DialogActions({
 }) {
   return (
     <div className="flex justify-end gap-2 pt-2">
-      <button onClick={onCancel} className="rounded-md px-4 py-2 text-sm text-neutral-400">
+      <Button variant="quiet" onClick={onCancel}>
         Cancel
-      </button>
-      <button
-        onClick={onConfirm}
-        disabled={saving}
-        className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
-      >
+      </Button>
+      <Button variant="primary" onClick={onConfirm} disabled={saving}>
         {saving ? "Saving…" : label}
-      </button>
+      </Button>
     </div>
   );
 }

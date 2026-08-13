@@ -33,6 +33,17 @@ export interface ClosingSnapshot {
   expected_cash_paisa: number;
   counted_cash_paisa: number;
   variance_paisa: number;
+  /** Cash from orders that were settled and then voided during this
+   * business day (0043_settled_void_reconciliation.sql). Deliberately
+   * NOT folded into expected_cash_paisa/variance_paisa — a genuine
+   * settled-then-voided refund should reduce expected cash, same as it
+   * already does. This figure exists so an owner reviewing the close can
+   * see it and go verify each one, instead of it being unrecoverable
+   * from the snapshot entirely. */
+  // Optional — 0043_settled_void_reconciliation.sql added this key going
+  // forward; a closing_snapshot saved by an earlier migration won't have
+  // it, so callers must handle undefined (ClosingReport below does).
+  voided_after_settle_cash_paisa?: number;
 }
 
 export interface Shift {

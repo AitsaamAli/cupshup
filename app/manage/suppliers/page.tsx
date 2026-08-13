@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useStaffSession } from "@/lib/auth";
+import { useBusinessDay } from "@/lib/business-day";
 import {
   useSuppliers,
   useSupplierPayables,
@@ -10,9 +11,26 @@ import {
   type Supplier,
 } from "@/lib/purchases";
 import { formatPaisa, type Paisa } from "@/lib/money";
+import { AppShell } from "@/components/ui/AppShell";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Field, Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 const CAN_EDIT = new Set(["owner", "manager"]);
+
+const PORTAL_NAV = [
+  { label: "Dashboard", href: "/reports/dashboard" },
+  { label: "Master P&L", href: "/reports/pl" },
+  { label: "Menu", href: "/manage/menu" },
+  { label: "Inventory", href: "/manage/inventory" },
+  { label: "Purchases", href: "/manage/purchases" },
+  { label: "Expenses", href: "/manage/expenses" },
+  { label: "Business day", href: "/manage/day" },
+];
 
 /**
  * Supplier CRUD + payables — Part 12. "Delete" is really
@@ -21,7 +39,8 @@ const CAN_EDIT = new Set(["owner", "manager"]);
  * app (menu items, staff, ...).
  */
 export default function SuppliersPage() {
-  const { staff } = useStaffSession("manage");
+  const { staff, loading: staffLoading, lock } = useStaffSession("manage");
+  const { day } = useBusinessDay(OUTLET_ID);
   const { suppliers, loading, reload } = useSuppliers(OUTLET_ID);
   const { rows: payables } = useSupplierPayables(OUTLET_ID);
   const [editing, setEditing] = useState<Supplier | "new" | null>(null);
@@ -29,67 +48,94 @@ export default function SuppliersPage() {
   const canEdit = !!staff && CAN_EDIT.has(staff.role);
   const payableFor = (id: string) => payables.find((p) => p.supplier_id === id);
 
-  if (loading) return <p className="p-8 text-neutral-400">Loading suppliers…</p>;
+  const columns: DataTableColumn<Supplier>[] = [
+    {
+      key: "name",
+      header: "Name",
+      sortValue: (s) => s.name,
+      render: (s) => (
+        <span className={`inline-flex items-center gap-2 ${s.active ? "" : "text-ink-300"}`}>
+          {s.name}
+          {!s.active && <StatusBadge status="void" label="Retired" />}
+        </span>
+      ),
+    },
+    { key: "phone", header: "Phone", render: (s) => <span className="text-ink-500">{s.phone ?? "—"}</span> },
+    { key: "terms", header: "Terms", render: (s) => <span className="text-ink-500">{s.terms ?? "—"}</span> },
+    {
+      key: "payable",
+      header: "Payable",
+      align: "right",
+      numeric: true,
+      sortValue: (s) => payableFor(s.id)?.payable_paisa ?? 0,
+      render: (s) => {
+        const p = payableFor(s.id);
+        return (
+          <span className={p && p.payable_paisa > 0 ? "text-warning" : "text-ink-500"}>
+            {formatPaisa((p?.payable_paisa ?? 0) as Paisa)}
+            {p && p.open_invoices > 0 && ` (${p.open_invoices} open)`}
+          </span>
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      render: (s) =>
+        canEdit && (
+          <div className="flex justify-end gap-3">
+            <Button variant="quiet" onClick={() => setEditing(s)}>
+              Edit
+            </Button>
+            <Button
+              variant="quiet"
+              onClick={async () => {
+                await setSupplierActive(s.id, !s.active);
+                reload();
+              }}
+            >
+              {s.active ? "Retire" : "Reactivate"}
+            </Button>
+          </div>
+        ),
+    },
+  ];
+
+  if (staffLoading) return <div className="min-h-screen bg-canvas" />;
 
   return (
-    <main className="min-h-screen bg-neutral-950 p-6 text-white">
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Suppliers</h1>
-        {canEdit && (
-          <button
-            onClick={() => setEditing("new")}
-            className="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-neutral-950"
-          >
-            + Add supplier
-          </button>
-        )}
-      </header>
+    <AppShell
+      density="portal"
+      nav={PORTAL_NAV}
+      crumbs={[{ label: "Purchases" }, { label: "Suppliers" }]}
+      staff={staff}
+      dayStatus={day?.status === "open" ? "open" : "closed"}
+      onLock={lock}
+    >
+      <div className="p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-portal-xl font-semibold text-ink-900">Suppliers</h1>
+          {canEdit && (
+            <Button variant="primary" onClick={() => setEditing("new")}>
+              + Add supplier
+            </Button>
+          )}
+        </div>
 
-      <table className="w-full text-left text-sm">
-        <thead className="text-neutral-500">
-          <tr>
-            <th className="pb-2 pr-4">Name</th>
-            <th className="pb-2 pr-4">Phone</th>
-            <th className="pb-2 pr-4">Terms</th>
-            <th className="pb-2 pr-4">Payable</th>
-            <th className="pb-2 pr-4"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {suppliers.map((s) => {
-            const p = payableFor(s.id);
-            return (
-              <tr key={s.id} className={`border-t border-neutral-800 ${!s.active ? "opacity-50" : ""}`}>
-                <td className="py-2 pr-4">{s.name}</td>
-                <td className="py-2 pr-4 text-neutral-400">{s.phone ?? "—"}</td>
-                <td className="py-2 pr-4 text-neutral-400">{s.terms ?? "—"}</td>
-                <td className={`py-2 pr-4 ${p && p.payable_paisa > 0 ? "text-amber-400" : "text-neutral-500"}`}>
-                  {formatPaisa((p?.payable_paisa ?? 0) as Paisa)}
-                  {p && p.open_invoices > 0 && ` (${p.open_invoices} open)`}
-                </td>
-                <td className="py-2 pr-4 text-right">
-                  {canEdit && (
-                    <>
-                      <button onClick={() => setEditing(s)} className="mr-3 text-neutral-400 underline">
-                        Edit
-                      </button>
-                      <button
-                        onClick={async () => {
-                          await setSupplierActive(s.id, !s.active);
-                          reload();
-                        }}
-                        className="text-neutral-400 underline"
-                      >
-                        {s.active ? "Retire" : "Reactivate"}
-                      </button>
-                    </>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+        <Card className="p-4">
+          {loading ? (
+            <p className="text-portal-sm text-ink-500">Loading…</p>
+          ) : (
+            <DataTable
+              columns={columns}
+              rows={suppliers}
+              keyExtractor={(s) => s.id}
+              emptyMessage="No suppliers yet."
+            />
+          )}
+        </Card>
+      </div>
 
       {editing && (
         <SupplierDialog
@@ -101,7 +147,7 @@ export default function SuppliersPage() {
           }}
         />
       )}
-    </main>
+    </AppShell>
   );
 }
 
@@ -141,37 +187,27 @@ function SupplierDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-md border border-neutral-800 bg-neutral-900 p-5">
-        <h3 className="mb-4 font-medium">{supplier ? "Edit supplier" : "Add supplier"}</h3>
-        <div className="space-y-3">
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Name</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} className="input" autoFocus />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Phone</span>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} className="input" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Terms (e.g. &quot;Net 15 days&quot;)</span>
-            <input value={terms} onChange={(e) => setTerms(e.target.value)} className="input" />
-          </label>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={onClose} className="rounded-md px-4 py-2 text-sm text-neutral-400">
-              Cancel
-            </button>
-            <button
-              onClick={save}
-              disabled={saving}
-              className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save"}
-            </button>
-          </div>
+    <Modal title={supplier ? "Edit supplier" : "Add supplier"} onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Name" htmlFor="supplier-name">
+          <Input id="supplier-name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        </Field>
+        <Field label="Phone" htmlFor="supplier-phone">
+          <Input id="supplier-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </Field>
+        <Field label={'Terms (e.g. "Net 15 days")'} htmlFor="supplier-terms">
+          <Input id="supplier-terms" value={terms} onChange={(e) => setTerms(e.target.value)} />
+        </Field>
+        {error && <p className="text-portal-xs text-danger">{error}</p>}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="quiet" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

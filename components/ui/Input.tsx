@@ -23,13 +23,13 @@ export function Field({ label, htmlFor, children, hint, error }: { label: string
   );
 }
 
-export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className="input" {...props} />;
+export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={`input ${className}`} {...props} />;
 }
 
-export function Select({ children, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { children: ReactNode }) {
+export function Select({ children, className = "", ...props }: SelectHTMLAttributes<HTMLSelectElement> & { children: ReactNode }) {
   return (
-    <select className="input" {...props}>
+    <select className={`input ${className}`} {...props}>
       {children}
     </select>
   );

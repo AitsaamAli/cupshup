@@ -207,10 +207,71 @@ Verified: `tsc --noEmit` clean, full `next build` clean (24/24 pages)
 after every change in this pass.
 
 **Deferred, explicitly** — real, sizeable pieces, not started:
-denomination counter (Xero-style cash counting, needs the business-day-
-close screen which hasn't been touched at all yet), full report
-drill-down (clicking a KPI number to its underlying orders), `BottomSheet`
-component + the mobile responsive sweep, `OfflineBanner` as its own
-named component (the equivalent exists inline as `offline-indicator.tsx`
-but isn't factored out to match the spec's component list), split-settle
-re-audit after the exact-amount change, `next-intl`/RTL, PWA polish.
+denomination counter (Xero-style cash counting — the business-day-close
+screen itself IS now retrofitted, see §7, but this specific line-item
+was never in scope for that pass), full report drill-down (clicking a
+KPI number to its underlying orders), `BottomSheet` component + the
+mobile responsive sweep, `OfflineBanner` as its own named component (the
+equivalent exists inline as `offline-indicator.tsx` but isn't factored
+out to match the spec's component list), split-settle re-audit after the
+exact-amount change, `next-intl`/RTL, PWA polish.
+
+## 7. Third pass — every `/manage/*` page retrofitted
+
+The biggest remaining gap from §4/§6: all 12 `/manage/*` pages (suppliers,
+inventory + its `count`/`recipes`/`variance` sub-pages, menu + its
+`price-history` sub-page, purchases + its `prices` sub-page, expenses +
+its `reports` sub-page, and business day/shifts) were still 100% on Part
+15's dark `neutral-*` palette, never mounted in `AppShell` — the single
+biggest visual inconsistency an owner/manager would hit, since these are
+the screens used every single day, right after the three signature
+screens that already got done.
+
+**What changed, mechanically, on every page:**
+- Wrapped in `<AppShell density="portal" nav={PORTAL_NAV} crumbs={...}>`
+  — same nav array and sidebar every portal screen shares.
+- Every hand-rolled `<table>` replaced with the shared `DataTable`
+  (sortable headers, tabular-nums numeric columns, consistent empty-state
+  copy) unless the table needed an inline-editable cell mid-row
+  (`/manage/inventory/count`'s counted-quantity input), which `DataTable`
+  supports fine — `render()` can return anything, including a controlled
+  `Input`.
+- Every hand-rolled modal/dialog replaced with the shared `Modal` +
+  `Field`/`Input`/`Select` + `Button` (`variant="primary"` for the
+  confirming action, `variant="quiet"` for Cancel/Edit/Remove-style
+  low-emphasis actions, `variant="danger"` only for the one genuinely
+  destructive action — closing the business day).
+- Every `text-neutral-*`/`text-red-*`/`text-amber-*`/`text-emerald-*`
+  replaced with the token equivalent (`text-ink-*`, `text-danger`,
+  `text-warning`, `text-success`) and `StatusBadge` used wherever a page
+  was hand-rolling its own coloured pill (retired supplier, unconfirmed
+  price, 86'd item, open/closed shift, cash-drawer variance).
+
+**Two real bugs found and fixed while doing this, not just retrofitted:**
+- **`Input`/`Select` silently discarded any caller-supplied `className`**
+  (`<input className="input" {...props} />` — spreading `props` after
+  the literal `className` let a passed-in `className` overwrite `"input"`
+  entirely, not merge with it). Never surfaced before this pass because
+  no existing page had ever passed one. Fixed to destructure and merge:
+  `className={`input ${className}`}`. Needed here because
+  `/manage/inventory/count` and `/manage/day` both need a
+  narrower-than-default input inline in a table cell / button row.
+- **`voided_after_settle_cash_paisa`** (added to `close_business_day()`'s
+  JSON return by `0043_settled_void_reconciliation.sql`, earlier the same
+  session) had never been added to the `ClosingSnapshot` TypeScript type
+  or rendered anywhere — the fraud-visibility figure that migration
+  exists to produce was reaching the database and immediately going
+  nowhere. Added as an optional field (older snapshots predate the
+  migration and won't have the key) and surfaced as its own row in
+  `/manage/day`'s Closing Report, flagged red when non-zero.
+
+Verified: `tsc --noEmit` clean, `next build` clean (24/24 pages, same
+count as before — no route added or lost), full `vitest` suite still
+169/169, `eslint` clean on every touched file. `grep -r "neutral-"
+app/manage/` now returns nothing.
+
+**Still not done in `/manage/*`:** no page-specific responsive sweep
+(inherits whatever `AppShell`'s own responsive behaviour already is,
+not audited against the device matrix's stacked-card-table rule for
+these specific tables), no Urdu strings, no PWA-specific work. Same
+deferred list as §6 otherwise — nothing here closed any of those.

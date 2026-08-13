@@ -17,9 +17,24 @@ import { createClient } from "@/lib/supabase/client";
 import { formatPaisa, rupeesToPaisa, type Paisa } from "@/lib/money";
 import { PrintButton } from "@/components/print/print-button";
 import { buildDayReportDoc } from "@/lib/print-templates";
+import { AppShell } from "@/components/ui/AppShell";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Field, Input, Select } from "@/components/ui/Input";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 const CAN_OPEN_CLOSE_DAY = new Set(["owner", "manager", "supervisor"]);
+
+const PORTAL_NAV = [
+  { label: "Dashboard", href: "/reports/dashboard" },
+  { label: "Master P&L", href: "/reports/pl" },
+  { label: "Menu", href: "/manage/menu" },
+  { label: "Inventory", href: "/manage/inventory" },
+  { label: "Purchases", href: "/manage/purchases" },
+  { label: "Expenses", href: "/manage/expenses" },
+  { label: "Business day", href: "/manage/day" },
+];
 
 /**
  * Business Day & Shifts — Part 13. The day-open/day-closed enforcement
@@ -29,7 +44,7 @@ const CAN_OPEN_CLOSE_DAY = new Set(["owner", "manager", "supervisor"]);
  * cashier opens/closes their own drawer.
  */
 export default function BusinessDayPage() {
-  const { staff } = useStaffSession("manage");
+  const { staff, loading: staffLoading, lock } = useStaffSession("manage");
   const { day, shifts, loading, reload } = useBusinessDay(OUTLET_ID);
   const [cashierNames, setCashierNames] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -51,86 +66,97 @@ export default function BusinessDayPage() {
   const canOpenCloseDay = !!staff && CAN_OPEN_CLOSE_DAY.has(staff.role);
   const myOpenShift = shifts.find((s) => s.cashier_id === staff?.id && !s.closed_at) ?? null;
 
-  if (loading) return <p className="p-8 text-neutral-400">Loading…</p>;
+  if (staffLoading) return <div className="min-h-screen bg-canvas" />;
 
   return (
-    <main className="min-h-screen bg-neutral-950 p-6 text-white">
-      <h1 className="mb-6 text-xl font-semibold">Business Day &amp; Shifts</h1>
-      {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
+    <AppShell
+      density="portal"
+      nav={PORTAL_NAV}
+      crumbs={[{ label: "Business day" }]}
+      staff={staff}
+      dayStatus={day?.status === "open" ? "open" : "closed"}
+      onLock={lock}
+    >
+      <div className="p-4">
+        <h1 className="mb-4 text-portal-xl font-semibold text-ink-900">Business Day &amp; Shifts</h1>
+        {error && <p className="mb-4 text-portal-sm text-danger">{error}</p>}
 
-      {!day || day.status !== "open" ? (
-        canOpenCloseDay ? (
-          <OpenDayForm
-            onOpen={async (floatPaisa) => {
-              try {
-                await openBusinessDay(OUTLET_ID, floatPaisa);
-                reload();
-              } catch (err) {
-                setError((err as Error).message);
-              }
-            }}
-          />
-        ) : (
-          <p className="text-neutral-400">
-            No business day is open yet. Ask a manager or supervisor to open it.
-          </p>
-        )
-      ) : (
-        <>
-          <section className="mb-6 rounded-md border border-neutral-800 p-4">
-            <p className="text-sm text-neutral-400">
-              Business day: <span className="text-white">{day.business_date}</span> — status:{" "}
-              <span className="text-emerald-400">{day.status}</span>
-            </p>
-          </section>
-
-          {!myOpenShift && staff && (
-            <OpenShiftForm
+        {loading ? (
+          <p className="text-portal-sm text-ink-500">Loading…</p>
+        ) : !day || day.status !== "open" ? (
+          canOpenCloseDay ? (
+            <OpenDayForm
               onOpen={async (floatPaisa) => {
                 try {
-                  await openShift(floatPaisa);
+                  await openBusinessDay(OUTLET_ID, floatPaisa);
                   reload();
                 } catch (err) {
                   setError((err as Error).message);
                 }
               }}
             />
-          )}
+          ) : (
+            <p className="text-portal-sm text-ink-500">
+              No business day is open yet. Ask a manager or supervisor to open it.
+            </p>
+          )
+        ) : (
+          <>
+            <Card className="mb-6 p-4">
+              <p className="text-portal-sm text-ink-700">
+                Business day: <span className="font-medium text-ink-900">{day.business_date}</span> — status:{" "}
+                <StatusBadge status="ready" label={day.status} />
+              </p>
+            </Card>
 
-          <h2 className="mb-3 mt-6 font-medium">Shifts</h2>
-          <ul className="mb-6 space-y-3">
-            {shifts.map((shift) => (
-              <ShiftRow
-                key={shift.id}
-                shift={shift}
-                cashierName={cashierNames[shift.cashier_id] ?? shift.cashier_id}
-                isMine={shift.cashier_id === staff?.id}
-                canManage={canOpenCloseDay}
-                onChanged={reload}
-                onError={setError}
+            {!myOpenShift && staff && (
+              <OpenShiftForm
+                onOpen={async (floatPaisa) => {
+                  try {
+                    await openShift(floatPaisa);
+                    reload();
+                  } catch (err) {
+                    setError((err as Error).message);
+                  }
+                }}
               />
-            ))}
-          </ul>
+            )}
 
-          {canOpenCloseDay && (
-            <CloseDayForm
-              onClose={async (countedPaisa) => {
-                try {
-                  await closeBusinessDay(day.id, countedPaisa);
-                  reload();
-                } catch (err) {
-                  setError((err as Error).message);
-                }
-              }}
-            />
-          )}
-        </>
-      )}
+            <h2 className="mb-3 mt-6 text-portal-sm font-semibold text-ink-900">Shifts</h2>
+            <ul className="mb-6 space-y-3">
+              {shifts.map((shift) => (
+                <ShiftRow
+                  key={shift.id}
+                  shift={shift}
+                  cashierName={cashierNames[shift.cashier_id] ?? shift.cashier_id}
+                  isMine={shift.cashier_id === staff?.id}
+                  canManage={canOpenCloseDay}
+                  onChanged={reload}
+                  onError={setError}
+                />
+              ))}
+            </ul>
 
-      {day?.status === "closed" && day.closing_snapshot && (
-        <ClosingReport snapshot={day.closing_snapshot} businessDate={day.business_date} />
-      )}
-    </main>
+            {canOpenCloseDay && (
+              <CloseDayForm
+                onClose={async (countedPaisa) => {
+                  try {
+                    await closeBusinessDay(day.id, countedPaisa);
+                    reload();
+                  } catch (err) {
+                    setError((err as Error).message);
+                  }
+                }}
+              />
+            )}
+          </>
+        )}
+
+        {day?.status === "closed" && day.closing_snapshot && (
+          <ClosingReport snapshot={day.closing_snapshot} businessDate={day.business_date} />
+        )}
+      </div>
+    </AppShell>
   );
 }
 
@@ -139,32 +165,32 @@ function OpenDayForm({ onOpen }: { onOpen: (floatPaisa: number) => Promise<void>
   const [saving, setSaving] = useState(false);
 
   return (
-    <section className="rounded-md border border-neutral-800 p-4">
-      <h2 className="mb-3 font-medium">Open Business Day</h2>
+    <Card className="p-4">
+      <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Open Business Day</h2>
       <div className="flex items-end gap-3">
-        <label className="block">
-          <span className="mb-1 block text-xs text-neutral-400">Opening float (Rs)</span>
-          <input
+        <Field label="Opening float (Rs)" htmlFor="open-day-float">
+          <Input
+            id="open-day-float"
             type="number"
             step="0.01"
             value={floatRupees}
             onChange={(e) => setFloatRupees(e.target.value)}
-            className="input w-40"
+            className="w-40"
           />
-        </label>
-        <button
+        </Field>
+        <Button
+          variant="primary"
           onClick={async () => {
             setSaving(true);
             await onOpen(rupeesToPaisa(Number(floatRupees) || 0));
             setSaving(false);
           }}
           disabled={saving}
-          className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
         >
           {saving ? "Opening…" : "Open day"}
-        </button>
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -173,32 +199,32 @@ function OpenShiftForm({ onOpen }: { onOpen: (floatPaisa: number) => Promise<voi
   const [saving, setSaving] = useState(false);
 
   return (
-    <section className="mb-6 rounded-md border border-neutral-800 p-4">
-      <h2 className="mb-3 font-medium">Open my shift</h2>
+    <Card className="mb-6 p-4">
+      <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Open my shift</h2>
       <div className="flex items-end gap-3">
-        <label className="block">
-          <span className="mb-1 block text-xs text-neutral-400">Opening float (Rs)</span>
-          <input
+        <Field label="Opening float (Rs)" htmlFor="open-shift-float">
+          <Input
+            id="open-shift-float"
             type="number"
             step="0.01"
             value={floatRupees}
             onChange={(e) => setFloatRupees(e.target.value)}
-            className="input w-40"
+            className="w-40"
           />
-        </label>
-        <button
+        </Field>
+        <Button
+          variant="primary"
           onClick={async () => {
             setSaving(true);
             await onOpen(rupeesToPaisa(Number(floatRupees) || 0));
             setSaving(false);
           }}
           disabled={saving}
-          className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
         >
           {saving ? "Opening…" : "Open my shift"}
-        </button>
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -255,23 +281,21 @@ function ShiftRow({
   }
 
   return (
-    <li className="rounded-md border border-neutral-800 p-4">
+    <li className="rounded-lg border border-line bg-surface p-4">
       <div className="mb-2 flex items-center justify-between">
-        <p className="font-medium">
-          {cashierName} {isMine && <span className="text-xs text-neutral-500">(you)</span>}
+        <p className="text-portal-sm font-medium text-ink-900">
+          {cashierName} {isMine && <span className="text-portal-xs text-ink-500">(you)</span>}
         </p>
-        <span className={shift.closed_at ? "text-neutral-500" : "text-emerald-400"}>
-          {shift.closed_at ? "closed" : "open"}
-        </span>
+        <StatusBadge status={shift.closed_at ? "neutral" : "ready"} label={shift.closed_at ? "Closed" : "Open"} />
       </div>
-      <p className="mb-2 text-sm text-neutral-400">
+      <p className="mb-2 text-portal-sm text-ink-500">
         Float: {formatPaisa(shift.opening_float_paisa as Paisa)}
         {shift.closed_at && (
           <>
             {" "}
             — Expected: {formatPaisa((shift.expected_cash_paisa ?? 0) as Paisa)} — Counted:{" "}
             {formatPaisa((shift.counted_cash_paisa ?? 0) as Paisa)} — Variance:{" "}
-            <span className={(shift.variance_paisa ?? 0) < 0 ? "text-red-400" : "text-neutral-300"}>
+            <span className={(shift.variance_paisa ?? 0) < 0 ? "text-danger" : "text-ink-700"}>
               {formatPaisa((shift.variance_paisa ?? 0) as Paisa)}
             </span>
           </>
@@ -280,49 +304,46 @@ function ShiftRow({
 
       {canOperate && (
         <div className="flex flex-wrap items-end gap-2">
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Cash movement</span>
-            <select
+          <Field label="Cash movement" htmlFor={`shift-movement-${shift.id}`}>
+            <Select
+              id={`shift-movement-${shift.id}`}
               value={movementType}
               onChange={(e) => setMovementType(e.target.value as CashMovementType)}
-              className="input"
             >
               <option value="drop">Drop (to safe)</option>
               <option value="pickup">Pickup</option>
               <option value="paid_out">Paid out</option>
               <option value="paid_in">Paid in</option>
               <option value="float_in">Float top-up</option>
-            </select>
-          </label>
-          <input
+            </Select>
+          </Field>
+          <Input
             type="number"
             step="0.01"
             placeholder="Rs"
             value={movementAmount}
             onChange={(e) => setMovementAmount(e.target.value)}
-            className="input w-24"
+            className="w-24"
+            aria-label="Movement amount"
           />
-          <button onClick={doMovement} disabled={busy} className="rounded-md bg-neutral-800 px-3 py-2 text-xs">
+          <Button variant="secondary" onClick={doMovement} disabled={busy}>
             Record
-          </button>
+          </Button>
 
-          <span className="mx-2 text-neutral-700">|</span>
+          <span className="mx-2 text-ink-300">|</span>
 
-          <input
+          <Input
             type="number"
             step="0.01"
             placeholder="Counted cash (Rs)"
             value={countedRupees}
             onChange={(e) => setCountedRupees(e.target.value)}
-            className="input w-36"
+            className="w-36"
+            aria-label="Counted cash"
           />
-          <button
-            onClick={doClose}
-            disabled={busy || !countedRupees}
-            className="rounded-md bg-white px-3 py-2 text-xs font-medium text-neutral-950"
-          >
+          <Button variant="primary" onClick={doClose} disabled={busy || !countedRupees}>
             Close shift
-          </button>
+          </Button>
         </div>
       )}
     </li>
@@ -334,36 +355,36 @@ function CloseDayForm({ onClose }: { onClose: (countedPaisa: number) => Promise<
   const [saving, setSaving] = useState(false);
 
   return (
-    <section className="rounded-md border border-red-500/40 p-4">
-      <h2 className="mb-1 font-medium">Close Business Day</h2>
-      <p className="mb-3 text-xs text-neutral-500">
+    <Card className="border-danger/40 p-4">
+      <h2 className="mb-1 text-portal-sm font-semibold text-ink-900">Close Business Day</h2>
+      <p className="mb-3 text-portal-xs text-ink-500">
         Locks the day permanently — no more orders, no reopening. Any still-open shifts are closed
         with this counted amount.
       </p>
       <div className="flex items-end gap-3">
-        <label className="block">
-          <span className="mb-1 block text-xs text-neutral-400">Total counted cash (Rs)</span>
-          <input
+        <Field label="Total counted cash (Rs)" htmlFor="close-day-counted">
+          <Input
+            id="close-day-counted"
             type="number"
             step="0.01"
             value={countedRupees}
             onChange={(e) => setCountedRupees(e.target.value)}
-            className="input w-40"
+            className="w-40"
           />
-        </label>
-        <button
+        </Field>
+        <Button
+          variant="danger"
           onClick={async () => {
             setSaving(true);
             await onClose(rupeesToPaisa(Number(countedRupees) || 0));
             setSaving(false);
           }}
           disabled={saving || !countedRupees}
-          className="rounded-md bg-red-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {saving ? "Closing…" : "Close day"}
-        </button>
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -390,17 +411,27 @@ function ClosingReport({ snapshot, businessDate }: { snapshot: ClosingSnapshot; 
     ["Expected cash", snapshot.expected_cash_paisa],
     ["Counted cash", snapshot.counted_cash_paisa],
     ["Variance", snapshot.variance_paisa],
+    // 0043_settled_void_reconciliation.sql — surfaced separately from
+    // variance on purpose: this is a "go review these" flag, not part of
+    // the cash-math itself. See the type's own comment in business-day.ts.
+    ["Voided after settlement", snapshot.voided_after_settle_cash_paisa ?? 0],
   ];
 
   return (
-    <section className="mt-6 rounded-md border border-neutral-800 p-4">
-      <h2 className="mb-3 font-medium">Closing Report</h2>
-      <table className="w-full text-left text-sm">
+    <Card className="mt-6 p-4">
+      <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Closing Report</h2>
+      <table className="w-full text-left text-portal-sm">
         <tbody>
           {rows.map(([label, value]) => (
-            <tr key={label} className="border-t border-neutral-800">
-              <td className="py-1.5 pr-4 text-neutral-400">{label}</td>
-              <td className={`py-1.5 text-right ${label === "Variance" && value < 0 ? "text-red-400" : ""}`}>
+            <tr key={label} className="border-t border-line">
+              <td className="py-1.5 pr-4 text-ink-500">{label}</td>
+              <td
+                className={`py-1.5 text-right tabular-nums ${
+                  (label === "Variance" && value < 0) || (label === "Voided after settlement" && value > 0)
+                    ? "text-danger"
+                    : "text-ink-900"
+                }`}
+              >
                 {label === "Orders settled" ? value : formatPaisa(value as Paisa)}
               </td>
             </tr>
@@ -410,6 +441,6 @@ function ClosingReport({ snapshot, businessDate }: { snapshot: ClosingSnapshot; 
       <div className="mt-3">
         <PrintButton kind="report" getDoc={buildReport} label="Print report" />
       </div>
-    </section>
+    </Card>
   );
 }

@@ -2,10 +2,26 @@
 
 import { useState } from "react";
 import { useStaffSession } from "@/lib/auth";
-import { useIngredientStock, recordStockCount } from "@/lib/inventory";
+import { useBusinessDay } from "@/lib/business-day";
+import { useIngredientStock, recordStockCount, type IngredientStockRow } from "@/lib/inventory";
+import { AppShell } from "@/components/ui/AppShell";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 const CAN_COUNT = new Set(["owner", "manager"]);
+
+const PORTAL_NAV = [
+  { label: "Dashboard", href: "/reports/dashboard" },
+  { label: "Master P&L", href: "/reports/pl" },
+  { label: "Menu", href: "/manage/menu" },
+  { label: "Inventory", href: "/manage/inventory" },
+  { label: "Purchases", href: "/manage/purchases" },
+  { label: "Expenses", href: "/manage/expenses" },
+  { label: "Business day", href: "/manage/day" },
+];
 
 /**
  * Physical stock count — Part 11. A manager types what's actually on
@@ -15,7 +31,8 @@ const CAN_COUNT = new Set(["owner", "manager"]);
  * variance since the last count (see /manage/inventory/variance).
  */
 export default function StockCountPage() {
-  const { staff } = useStaffSession("manage");
+  const { staff, loading: staffLoading, lock } = useStaffSession("manage");
+  const { day } = useBusinessDay(OUTLET_ID);
   const { rows, loading, reload } = useIngredientStock(OUTLET_ID);
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
@@ -43,69 +60,90 @@ export default function StockCountPage() {
     }
   }
 
-  if (loading) return <p className="p-8 text-neutral-400">Loading…</p>;
+  const columns: DataTableColumn<IngredientStockRow>[] = [
+    { key: "name", header: "Ingredient", sortValue: (r) => r.name, render: (r) => r.name },
+    {
+      key: "system",
+      header: "System stock",
+      align: "right",
+      numeric: true,
+      render: (r) => (
+        <span className="text-ink-500">
+          {r.current_stock} {r.unit}
+        </span>
+      ),
+    },
+    {
+      key: "counted",
+      header: "Counted",
+      render: (r) => (
+        <Input
+          type="number"
+          step="0.001"
+          value={counts[r.id] ?? ""}
+          onChange={(e) => setCounts((c) => ({ ...c, [r.id]: e.target.value }))}
+          className="w-28"
+        />
+      ),
+    },
+    {
+      key: "variance",
+      header: "Variance",
+      render: (r) =>
+        results[r.id] !== undefined && (
+          <span className={results[r.id].variance !== 0 ? "text-warning" : "text-ink-500"}>
+            {results[r.id].variance > 0 ? "+" : ""}
+            {results[r.id].variance} {r.unit}
+          </span>
+        ),
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (r) => (
+        <Button
+          variant="primary"
+          onClick={() => submitCount(r.id)}
+          disabled={saving === r.id || !counts[r.id]}
+        >
+          {saving === r.id ? "Saving…" : "Submit"}
+        </Button>
+      ),
+    },
+  ];
+
+  if (staffLoading) return <div className="min-h-screen bg-canvas" />;
 
   if (!canCount) {
-    return <p className="p-8 text-neutral-400">Only Owner/Manager can record a stock count.</p>;
+    return <p className="p-8 text-portal-sm text-ink-500">Only Owner/Manager can record a stock count.</p>;
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 p-6 text-white">
-      <h1 className="mb-2 text-xl font-semibold">Physical Stock Count</h1>
-      <p className="mb-6 text-sm text-neutral-400">
-        Enter what&apos;s actually on the shelf for each ingredient. The system compares it to the
-        ledger and records the difference.
-      </p>
+    <AppShell
+      density="portal"
+      nav={PORTAL_NAV}
+      crumbs={[{ label: "Inventory" }, { label: "Physical count" }]}
+      staff={staff}
+      dayStatus={day?.status === "open" ? "open" : "closed"}
+      onLock={lock}
+    >
+      <div className="p-4">
+        <h1 className="mb-1 text-portal-xl font-semibold text-ink-900">Physical Stock Count</h1>
+        <p className="mb-4 text-portal-sm text-ink-500">
+          Enter what&apos;s actually on the shelf for each ingredient. The system compares it to the
+          ledger and records the difference.
+        </p>
 
-      {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
+        {error && <p className="mb-4 text-portal-sm text-danger">{error}</p>}
 
-      <table className="w-full text-left text-sm">
-        <thead className="text-neutral-500">
-          <tr>
-            <th className="pb-2 pr-4">Ingredient</th>
-            <th className="pb-2 pr-4">System stock</th>
-            <th className="pb-2 pr-4">Counted</th>
-            <th className="pb-2 pr-4">Variance</th>
-            <th className="pb-2 pr-4"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="border-t border-neutral-800">
-              <td className="py-2 pr-4">{row.name}</td>
-              <td className="py-2 pr-4 text-neutral-400">
-                {row.current_stock} {row.unit}
-              </td>
-              <td className="py-2 pr-4">
-                <input
-                  type="number"
-                  step="0.001"
-                  value={counts[row.id] ?? ""}
-                  onChange={(e) => setCounts((c) => ({ ...c, [row.id]: e.target.value }))}
-                  className="input w-28"
-                />
-              </td>
-              <td className="py-2 pr-4">
-                {results[row.id] !== undefined && (
-                  <span className={results[row.id].variance !== 0 ? "text-amber-400" : "text-neutral-500"}>
-                    {results[row.id].variance > 0 ? "+" : ""}
-                    {results[row.id].variance} {row.unit}
-                  </span>
-                )}
-              </td>
-              <td className="py-2 pr-4">
-                <button
-                  onClick={() => submitCount(row.id)}
-                  disabled={saving === row.id || !counts[row.id]}
-                  className="rounded-md bg-white px-3 py-1 text-xs font-medium text-neutral-950 disabled:opacity-40"
-                >
-                  {saving === row.id ? "Saving…" : "Submit"}
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </main>
+        <Card className="p-4">
+          {loading ? (
+            <p className="text-portal-sm text-ink-500">Loading…</p>
+          ) : (
+            <DataTable columns={columns} rows={rows} keyExtractor={(r) => r.id} emptyMessage="No ingredients yet." />
+          )}
+        </Card>
+      </div>
+    </AppShell>
   );
 }

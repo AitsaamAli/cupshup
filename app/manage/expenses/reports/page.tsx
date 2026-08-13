@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useStaffSession } from "@/lib/auth";
+import { useBusinessDay } from "@/lib/business-day";
 import {
   useExpenseCategories,
   useExpenses,
@@ -10,8 +11,20 @@ import {
   summarizeCashVsNonCash,
 } from "@/lib/expenses";
 import { formatPaisa, type Paisa } from "@/lib/money";
+import { AppShell } from "@/components/ui/AppShell";
+import { Card } from "@/components/ui/Card";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
+
+const PORTAL_NAV = [
+  { label: "Dashboard", href: "/reports/dashboard" },
+  { label: "Master P&L", href: "/reports/pl" },
+  { label: "Menu", href: "/manage/menu" },
+  { label: "Inventory", href: "/manage/inventory" },
+  { label: "Purchases", href: "/manage/purchases" },
+  { label: "Expenses", href: "/manage/expenses" },
+  { label: "Business day", href: "/manage/day" },
+];
 
 /**
  * Expense reports — Part 14: category-wise, vendor-wise, a monthly
@@ -21,7 +34,8 @@ const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
  * RPC or view was needed beyond the amortization view already built.
  */
 export default function ExpenseReportsPage() {
-  const { staff } = useStaffSession("manage");
+  const { staff, loading: staffLoading, lock } = useStaffSession("manage");
+  const { day } = useBusinessDay(OUTLET_ID);
   const categories = useExpenseCategories(OUTLET_ID);
   const { expenses, loading } = useExpenses(OUTLET_ID, 500);
 
@@ -38,81 +52,97 @@ export default function ExpenseReportsPage() {
     return [...totals.entries()].sort(([a], [b]) => b.localeCompare(a));
   }, [expenses]);
 
+  if (staffLoading) return <div className="min-h-screen bg-canvas" />;
+
   if (staff && staff.role !== "owner" && staff.role !== "manager") {
-    return <p className="p-8 text-neutral-400">Only Owner/Manager can view expense reports.</p>;
+    return <p className="p-8 text-portal-sm text-ink-500">Only Owner/Manager can view expense reports.</p>;
   }
-  if (loading) return <p className="p-8 text-neutral-400">Loading…</p>;
 
   const total = cashSplit.cashPaisa + cashSplit.nonCashPaisa;
 
   return (
-    <main className="min-h-screen bg-neutral-950 p-6 text-white">
-      <h1 className="mb-6 text-xl font-semibold">Expense Reports</h1>
+    <AppShell
+      density="portal"
+      nav={PORTAL_NAV}
+      crumbs={[{ label: "Expenses" }, { label: "Reports" }]}
+      staff={staff}
+      dayStatus={day?.status === "open" ? "open" : "closed"}
+      onLock={lock}
+    >
+      <div className="p-4">
+        <h1 className="mb-4 text-portal-xl font-semibold text-ink-900">Expense Reports</h1>
 
-      <section className="mb-8 grid grid-cols-2 gap-6">
-        <div>
-          <h2 className="mb-2 font-medium">Cash vs. non-cash</h2>
-          <p className="text-sm text-neutral-400">
-            Cash: <span className="text-white">{formatPaisa(cashSplit.cashPaisa as Paisa)}</span>
-          </p>
-          <p className="text-sm text-neutral-400">
-            Non-cash: <span className="text-white">{formatPaisa(cashSplit.nonCashPaisa as Paisa)}</span>
-          </p>
-          <p className="mt-1 text-xs text-neutral-600">
-            Only the cash portion ever reduces a drawer&apos;s expected cash (Part 13).
-          </p>
-        </div>
-        <div>
-          <h2 className="mb-2 font-medium">Total recorded</h2>
-          <p className="text-2xl">{formatPaisa(total as Paisa)}</p>
-        </div>
-      </section>
+        {loading ? (
+          <p className="text-portal-sm text-ink-500">Loading…</p>
+        ) : (
+          <>
+            <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Card className="p-4">
+                <h2 className="mb-2 text-portal-sm font-semibold text-ink-900">Cash vs. non-cash</h2>
+                <p className="text-portal-sm text-ink-500">
+                  Cash: <span className="text-ink-900">{formatPaisa(cashSplit.cashPaisa as Paisa)}</span>
+                </p>
+                <p className="text-portal-sm text-ink-500">
+                  Non-cash: <span className="text-ink-900">{formatPaisa(cashSplit.nonCashPaisa as Paisa)}</span>
+                </p>
+                <p className="mt-1 text-portal-xs text-ink-300">
+                  Only the cash portion ever reduces a drawer&apos;s expected cash (Part 13).
+                </p>
+              </Card>
+              <Card className="p-4">
+                <h2 className="mb-2 text-portal-sm font-semibold text-ink-900">Total recorded</h2>
+                <p className="text-portal-2xl tabular-nums text-ink-900">{formatPaisa(total as Paisa)}</p>
+              </Card>
+            </section>
 
-      <section className="mb-8">
-        <h2 className="mb-3 font-medium">By category</h2>
-        <table className="w-full text-left text-sm">
-          <tbody>
-            {byCategory.map((row) => (
-              <tr key={row.categoryId} className="border-t border-neutral-800">
-                <td className="py-1.5 pr-4 text-neutral-400">{row.categoryName}</td>
-                <td className="py-1.5 text-right">{formatPaisa(row.totalPaisa as Paisa)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+            <Card className="mb-6 p-4">
+              <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">By category</h2>
+              <table className="w-full text-left text-portal-sm">
+                <tbody>
+                  {byCategory.map((row) => (
+                    <tr key={row.categoryId} className="border-t border-line">
+                      <td className="py-1.5 pr-4 text-ink-500">{row.categoryName}</td>
+                      <td className="py-1.5 text-right tabular-nums text-ink-900">{formatPaisa(row.totalPaisa as Paisa)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
 
-      <section className="mb-8">
-        <h2 className="mb-3 font-medium">By vendor</h2>
-        <table className="w-full text-left text-sm">
-          <tbody>
-            {byVendor.map((row) => (
-              <tr key={row.vendor} className="border-t border-neutral-800">
-                <td className="py-1.5 pr-4 text-neutral-400">{row.vendor}</td>
-                <td className="py-1.5 text-right">{formatPaisa(row.totalPaisa as Paisa)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+            <Card className="mb-6 p-4">
+              <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">By vendor</h2>
+              <table className="w-full text-left text-portal-sm">
+                <tbody>
+                  {byVendor.map((row) => (
+                    <tr key={row.vendor} className="border-t border-line">
+                      <td className="py-1.5 pr-4 text-ink-500">{row.vendor}</td>
+                      <td className="py-1.5 text-right tabular-nums text-ink-900">{formatPaisa(row.totalPaisa as Paisa)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
 
-      <section>
-        <h2 className="mb-3 font-medium">Monthly trend</h2>
-        <table className="w-full text-left text-sm">
-          <tbody>
-            {byMonth.map(([month, amount]) => (
-              <tr key={month} className="border-t border-neutral-800">
-                <td className="py-1.5 pr-4 text-neutral-400">{month}</td>
-                <td className="py-1.5 text-right">{formatPaisa(amount as Paisa)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="mt-2 text-xs text-neutral-600">
-          Full amounts per month, exactly as recorded — never amortised (that spreading only
-          applies to daily P&L; see `daily_expenses_amortized`, Part 14).
-        </p>
-      </section>
-    </main>
+            <Card className="p-4">
+              <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Monthly trend</h2>
+              <table className="w-full text-left text-portal-sm">
+                <tbody>
+                  {byMonth.map(([month, amount]) => (
+                    <tr key={month} className="border-t border-line">
+                      <td className="py-1.5 pr-4 text-ink-500">{month}</td>
+                      <td className="py-1.5 text-right tabular-nums text-ink-900">{formatPaisa(amount as Paisa)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-portal-xs text-ink-300">
+                Full amounts per month, exactly as recorded — never amortised (that spreading only
+                applies to daily P&L; see `daily_expenses_amortized`, Part 14).
+              </p>
+            </Card>
+          </>
+        )}
+      </div>
+    </AppShell>
   );
 }

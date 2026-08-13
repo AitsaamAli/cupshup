@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useStaffSession } from "@/lib/auth";
+import { useBusinessDay } from "@/lib/business-day";
 import {
   useExpenseCategories,
   useExpenses,
@@ -15,6 +17,13 @@ import {
 import type { PaymentMethod } from "@/lib/settlement";
 import { formatPaisa, rupeesToPaisa, type Paisa } from "@/lib/money";
 import { createClient } from "@/lib/supabase/client";
+import { AppShell } from "@/components/ui/AppShell";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Field, Input, Select } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 const CAN_ENTER = new Set(["owner", "manager", "supervisor"]);
@@ -29,6 +38,16 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
   foodpanda: "Foodpanda",
 };
 
+const PORTAL_NAV = [
+  { label: "Dashboard", href: "/reports/dashboard" },
+  { label: "Master P&L", href: "/reports/pl" },
+  { label: "Menu", href: "/manage/menu" },
+  { label: "Inventory", href: "/manage/inventory" },
+  { label: "Purchases", href: "/manage/purchases" },
+  { label: "Expenses", href: "/manage/expenses" },
+  { label: "Business day", href: "/manage/day" },
+];
+
 /**
  * Expense entry — Part 14. Approval thresholds are enforced server-side
  * in record_expense()/approve_expense(); requiredApprovalRole() here is
@@ -37,7 +56,8 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
  * has to its RPC (previewSplitTax, previewWeightedAvgCost, ...).
  */
 export default function ExpensesPage() {
-  const { staff } = useStaffSession("manage");
+  const { staff, loading: staffLoading, lock } = useStaffSession("manage");
+  const { day } = useBusinessDay(OUTLET_ID);
   const categories = useExpenseCategories(OUTLET_ID);
   const { expenses, loading, reload } = useExpenses(OUTLET_ID);
   const [editing, setEditing] = useState<Expense | null>(null);
@@ -67,82 +87,93 @@ export default function ExpensesPage() {
     }
   }
 
+  const columns: DataTableColumn<Expense>[] = [
+    {
+      key: "date",
+      header: "Date",
+      sortValue: (e) => e.created_at,
+      render: (e) => <span className="text-ink-500">{new Date(e.created_at).toLocaleDateString()}</span>,
+    },
+    { key: "category", header: "Category", render: (e) => categoryName(e.category_id) },
+    { key: "amount", header: "Amount", align: "right", numeric: true, render: (e) => formatPaisa(e.amount_paisa as Paisa) },
+    { key: "method", header: "Method", render: (e) => <span className="text-ink-500">{METHOD_LABEL[e.payment_method]}</span> },
+    { key: "vendor", header: "Vendor", render: (e) => <span className="text-ink-500">{e.vendor ?? "—"}</span> },
+    {
+      key: "status",
+      header: "Status",
+      render: (e) =>
+        e.approved_by ? (
+          <StatusBadge status="ready" label="Approved" />
+        ) : (
+          <StatusBadge status="waiting" label={`Pending (${requiredApprovalRole(e.amount_paisa)})`} />
+        ),
+    },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      render: (e) => (
+        <div className="flex justify-end gap-3">
+          {!e.approved_by && canApprove && (
+            <Button variant="quiet" className="text-success hover:text-success" onClick={() => doApprove(e.id)}>
+              Approve
+            </Button>
+          )}
+          {canEdit && (
+            <Button variant="quiet" onClick={() => setEditing(e)}>
+              Edit
+            </Button>
+          )}
+          {isOwner && (
+            <Button variant="quiet" className="text-danger hover:text-danger" onClick={() => doDelete(e.id)}>
+              Delete
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  if (staffLoading) return <div className="min-h-screen bg-canvas" />;
+
   return (
-    <main className="min-h-screen bg-neutral-950 p-6 text-white">
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Expenses</h1>
-        <a href="/manage/expenses/reports" className="text-sm text-neutral-300 underline">
-          Reports
-        </a>
-      </header>
+    <AppShell
+      density="portal"
+      nav={PORTAL_NAV}
+      crumbs={[{ label: "Expenses" }]}
+      staff={staff}
+      dayStatus={day?.status === "open" ? "open" : "closed"}
+      onLock={lock}
+    >
+      <div className="p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-portal-xl font-semibold text-ink-900">Expenses</h1>
+          <Link href="/manage/expenses/reports" className="text-portal-sm text-brand-700 hover:underline">
+            Reports
+          </Link>
+        </div>
 
-      {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
+        {error && <p className="mb-4 text-portal-sm text-danger">{error}</p>}
 
-      {canEnter && (
-        <EntryForm
-          categories={categories}
-          onSaved={() => {
-            reload();
-          }}
-          onError={setError}
-        />
-      )}
+        {canEnter && (
+          <EntryForm
+            categories={categories}
+            onSaved={() => {
+              reload();
+            }}
+            onError={setError}
+          />
+        )}
 
-      <h2 className="mb-3 mt-8 font-medium">Recent expenses</h2>
-      {loading ? (
-        <p className="text-neutral-400">Loading…</p>
-      ) : (
-        <table className="w-full text-left text-sm">
-          <thead className="text-neutral-500">
-            <tr>
-              <th className="pb-2 pr-4">Date</th>
-              <th className="pb-2 pr-4">Category</th>
-              <th className="pb-2 pr-4">Amount</th>
-              <th className="pb-2 pr-4">Method</th>
-              <th className="pb-2 pr-4">Vendor</th>
-              <th className="pb-2 pr-4">Status</th>
-              <th className="pb-2 pr-4"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {expenses.map((e) => (
-              <tr key={e.id} className="border-t border-neutral-800">
-                <td className="py-2 pr-4 text-neutral-400">{new Date(e.created_at).toLocaleDateString()}</td>
-                <td className="py-2 pr-4">{categoryName(e.category_id)}</td>
-                <td className="py-2 pr-4">{formatPaisa(e.amount_paisa as Paisa)}</td>
-                <td className="py-2 pr-4 text-neutral-400">{METHOD_LABEL[e.payment_method]}</td>
-                <td className="py-2 pr-4 text-neutral-400">{e.vendor ?? "—"}</td>
-                <td className="py-2 pr-4">
-                  {e.approved_by ? (
-                    <span className="text-emerald-400">approved</span>
-                  ) : (
-                    <span className="text-amber-400">
-                      pending ({requiredApprovalRole(e.amount_paisa)})
-                    </span>
-                  )}
-                </td>
-                <td className="py-2 pr-4 text-right">
-                  {!e.approved_by && canApprove && (
-                    <button onClick={() => doApprove(e.id)} className="mr-3 text-emerald-400 underline">
-                      Approve
-                    </button>
-                  )}
-                  {canEdit && (
-                    <button onClick={() => setEditing(e)} className="mr-3 text-neutral-400 underline">
-                      Edit
-                    </button>
-                  )}
-                  {isOwner && (
-                    <button onClick={() => doDelete(e.id)} className="text-red-400 underline">
-                      Delete
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+        <h2 className="mb-3 mt-8 text-portal-sm font-semibold text-ink-900">Recent expenses</h2>
+        <Card className="p-4">
+          {loading ? (
+            <p className="text-portal-sm text-ink-500">Loading…</p>
+          ) : (
+            <DataTable columns={columns} rows={expenses} keyExtractor={(e) => e.id} emptyMessage="No expenses recorded yet." />
+          )}
+        </Card>
+      </div>
 
       {editing && (
         <EditDialog
@@ -154,7 +185,7 @@ export default function ExpensesPage() {
           }}
         />
       )}
-    </main>
+    </AppShell>
   );
 }
 
@@ -235,89 +266,69 @@ function EntryForm({
   }
 
   return (
-    <section className="rounded-md border border-neutral-800 p-4">
-      <h2 className="mb-3 font-medium">Record an expense</h2>
-      <div className="mb-3 grid grid-cols-3 gap-3">
-        <label className="block">
-          <span className="mb-1 block text-xs text-neutral-400">Category</span>
-          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="input">
+    <Card className="p-4">
+      <h2 className="mb-3 text-portal-sm font-semibold text-ink-900">Record an expense</h2>
+      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Field label="Category" htmlFor="expense-category">
+          <Select id="expense-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
             <option value="">Select…</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} ({c.accrual_type})
               </option>
             ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-neutral-400">
-            Amount (Rs){approvalHint && approvalHint !== "supervisor" && ` — needs ${approvalHint} approval`}
-          </span>
-          <input
-            type="number"
-            step="0.01"
-            value={amountRupees}
-            onChange={(e) => setAmountRupees(e.target.value)}
-            className="input"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-neutral-400">Payment method</span>
-          <select
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-            className="input"
-          >
+          </Select>
+        </Field>
+        <Field
+          label={`Amount (Rs)${approvalHint && approvalHint !== "supervisor" ? ` — needs ${approvalHint} approval` : ""}`}
+          htmlFor="expense-amount"
+        >
+          <Input id="expense-amount" type="number" step="0.01" value={amountRupees} onChange={(e) => setAmountRupees(e.target.value)} />
+        </Field>
+        <Field label="Payment method" htmlFor="expense-method">
+          <Select id="expense-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
             {Object.entries(METHOD_LABEL).map(([m, label]) => (
               <option key={m} value={m}>
                 {label}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
       </div>
 
       {isAmortized && (
-        <div className="mb-3 grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Period start</span>
-            <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="input" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Period end (exclusive)</span>
-            <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="input" />
-          </label>
+        <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Period start" htmlFor="expense-period-start">
+            <Input id="expense-period-start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+          </Field>
+          <Field label="Period end (exclusive)" htmlFor="expense-period-end">
+            <Input id="expense-period-end" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+          </Field>
         </div>
       )}
 
-      <div className="mb-3 grid grid-cols-3 gap-3">
-        <label className="block">
-          <span className="mb-1 block text-xs text-neutral-400">Vendor</span>
-          <input value={vendor} onChange={(e) => setVendor(e.target.value)} className="input" />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-neutral-400">Note</span>
-          <input value={note} onChange={(e) => setNote(e.target.value)} className="input" />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-neutral-400">Receipt photo</span>
+      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Field label="Vendor" htmlFor="expense-vendor">
+          <Input id="expense-vendor" value={vendor} onChange={(e) => setVendor(e.target.value)} />
+        </Field>
+        <Field label="Note" htmlFor="expense-note">
+          <Input id="expense-note" value={note} onChange={(e) => setNote(e.target.value)} />
+        </Field>
+        <Field label="Receipt photo" htmlFor="expense-receipt">
           <input
+            id="expense-receipt"
             type="file"
             accept="image/*"
             onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
-            className="text-sm text-neutral-400"
+            className="text-portal-sm text-ink-500"
           />
-        </label>
+        </Field>
       </div>
 
-      <button
-        onClick={submit}
-        disabled={saving}
-        className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
-      >
+      <Button variant="primary" onClick={submit} disabled={saving}>
         {saving ? "Saving…" : "Record expense"}
-      </button>
-    </section>
+      </Button>
+    </Card>
   );
 }
 
@@ -359,58 +370,37 @@ function EditDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-md border border-neutral-800 bg-neutral-900 p-5 text-white">
-        <h3 className="mb-4 font-medium">Edit expense</h3>
-        <div className="space-y-3">
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Amount (Rs)</span>
-            <input
-              type="number"
-              step="0.01"
-              value={amountRupees}
-              onChange={(e) => setAmountRupees(e.target.value)}
-              className="input"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Payment method</span>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-              className="input"
-            >
-              {Object.entries(METHOD_LABEL).map(([m, label]) => (
-                <option key={m} value={m}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Vendor</span>
-            <input value={vendor} onChange={(e) => setVendor(e.target.value)} className="input" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs text-neutral-400">Note</span>
-            <input value={note} onChange={(e) => setNote(e.target.value)} className="input" />
-          </label>
-          <p className="text-xs text-neutral-500">Only possible while the business day is still open.</p>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={onClose} className="rounded-md px-4 py-2 text-sm text-neutral-400">
-              Cancel
-            </button>
-            <button
-              onClick={save}
-              disabled={saving}
-              className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save"}
-            </button>
-          </div>
+    <Modal title="Edit expense" onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Amount (Rs)" htmlFor="edit-expense-amount">
+          <Input id="edit-expense-amount" type="number" step="0.01" value={amountRupees} onChange={(e) => setAmountRupees(e.target.value)} />
+        </Field>
+        <Field label="Payment method" htmlFor="edit-expense-method">
+          <Select id="edit-expense-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
+            {Object.entries(METHOD_LABEL).map(([m, label]) => (
+              <option key={m} value={m}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Vendor" htmlFor="edit-expense-vendor">
+          <Input id="edit-expense-vendor" value={vendor} onChange={(e) => setVendor(e.target.value)} />
+        </Field>
+        <Field label="Note" htmlFor="edit-expense-note">
+          <Input id="edit-expense-note" value={note} onChange={(e) => setNote(e.target.value)} />
+        </Field>
+        <p className="text-portal-xs text-ink-500">Only possible while the business day is still open.</p>
+        {error && <p className="text-portal-sm text-danger">{error}</p>}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="quiet" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
