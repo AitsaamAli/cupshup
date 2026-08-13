@@ -18,9 +18,20 @@ import { castRows } from "@/lib/supabase/rows";
  * containing a comma, quote, or newline by wrapping it in quotes and
  * doubling internal quotes — the standard CSV escaping rule, not
  * anything Excel-specific. */
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+
 export function toCsv<T>(rows: T[], columns: (keyof T & string)[]): string {
   const escape = (value: unknown): string => {
-    const s = value === null || value === undefined ? "" : String(value);
+    let s = value === null || value === undefined ? "" : String(value);
+    // Formula-injection guard: a field that STARTS with =, +, -, or @ is
+    // read as a formula (not literal text) by Excel/Sheets/LibreOffice
+    // when the file is opened — a free-text field a staff member
+    // controls (e.g. an expense's vendor name) could carry something
+    // like =cmd|'/c calc'!A1 and execute in the accountant's spreadsheet.
+    // A leading apostrophe forces every major spreadsheet app to treat
+    // the cell as plain text; it's never displayed and doesn't affect
+    // any other CSV consumer.
+    if (FORMULA_TRIGGER.test(s)) s = `'${s}`;
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const header = columns.join(",");

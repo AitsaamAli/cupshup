@@ -21,4 +21,25 @@ describe("toCsv", () => {
     const csv = toCsv([{ vendor: null as string | null }], ["vendor"]);
     expect(csv).toBe("vendor\r\n");
   });
+
+  // Formula-injection guard — a free-text field (e.g. an expense vendor
+  // name) that starts with =, +, -, or @ would otherwise be read as a
+  // live formula by Excel/Sheets when the accountant opens the export.
+  it.each(["=cmd|'/c calc'!A1", "+1+1", "-1+1", "@SUM(A1:A9)"])(
+    "prefixes a leading apostrophe when a value starts with %s",
+    (dangerous) => {
+      const csv = toCsv([{ vendor: dangerous }], ["vendor"]);
+      expect(csv).toBe(`vendor\r\n'${dangerous}`);
+    },
+  );
+
+  it("leaves a value with = in the middle, not the start, untouched", () => {
+    const csv = toCsv([{ note: "qty=5" }], ["note"]);
+    expect(csv).toBe("note\r\nqty=5");
+  });
+
+  it("still applies comma/quote escaping after the formula-injection prefix", () => {
+    const csv = toCsv([{ vendor: '=cmd,"boom"' }], ["vendor"]);
+    expect(csv).toBe(`vendor\r\n"'=cmd,""boom"""`);
+  });
 });
