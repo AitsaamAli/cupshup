@@ -157,6 +157,12 @@ export const fetchReprintSummary = (o: string, f: string, t: string) =>
   fetchDateRanged<ReprintSummaryRow>("reprint_summary", o, f, t);
 export const fetchLabourCost = (o: string, f: string, t: string) =>
   fetchDateRanged<LabourCostRow>("labour_cost_daily", o, f, t);
+/** Patch 2 (staff time clock) — the hourly-worked half of labour cost,
+ * kept as its own fetch/view rather than merged into fetchLabourCost so
+ * labour_cost_daily's own numbers stay independently inspectable; sum
+ * the two client-side (dashboard/pl pages) for the true total. */
+export const fetchLabourCostHourly = (o: string, f: string, t: string) =>
+  fetchDateRanged<LabourCostRow>("labour_cost_hourly_daily", o, f, t);
 
 /** Not date-ranged — one row per active ingredient, current vs. 30-90
  * days ago (0028_reports_views.sql). */

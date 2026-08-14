@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import type { StaffSession } from "@/lib/auth";
+import { useMyAttendance, clockIn, clockOut, formatElapsed } from "@/lib/time-clock";
 import { Breadcrumbs, type Crumb } from "./Breadcrumbs";
 import { KeyboardHint } from "./KeyboardHint";
 
@@ -99,6 +100,7 @@ function Header({
         >
           {lang === "en" ? "EN" : "UR"}
         </button>
+        {staff && <TimeClockControl staffId={staff.id} />}
         {staff && (
           <button
             onClick={onLock}
@@ -126,6 +128,58 @@ function Clock() {
     <span className="tabular-nums text-portal-xs text-ink-500">
       {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
     </span>
+  );
+}
+
+/**
+ * Clock in/out — Patch 2 (restaurant-system-master-prompt.md §6, staff
+ * time clock). Mounted in AppShell's header, so it's available on every
+ * authenticated screen without needing its own page. Live elapsed-time
+ * display uses the same "render nothing until mounted" guard as Clock()
+ * above, for the same reason (server/client time mismatch).
+ */
+function TimeClockControl({ staffId }: { staffId: string }) {
+  const { open, reload } = useMyAttendance(staffId);
+  const [now, setNow] = useState<Date | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  async function toggle() {
+    setBusy(true);
+    setError(null);
+    try {
+      if (open) {
+        await clockOut(0);
+      } else {
+        await clockIn();
+      }
+      reload();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!now) return <span className="w-20" />;
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={busy}
+      title={error ?? undefined}
+      className={`rounded-sm border px-1.5 py-0.5 text-portal-2xs font-medium ${
+        open ? "border-brand-600 bg-brand-50 text-brand-700" : "border-line text-ink-500 hover:text-ink-900"
+      }`}
+    >
+      {open ? `Clocked in — ${formatElapsed(open.clock_in, now)}` : "Clock in"}
+    </button>
   );
 }
 

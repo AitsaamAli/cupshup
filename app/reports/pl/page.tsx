@@ -11,6 +11,7 @@ import {
   fetchVoidByCashier,
   fetchReprintSummary,
   fetchLabourCost,
+  fetchLabourCostHourly,
   fetchIngredientCostTrend,
   classifyMenuItems,
   flagCashVariance,
@@ -85,6 +86,7 @@ export default function MasterPlPage() {
   const [voidByCashier, setVoidByCashier] = useState<VoidByCashierRow[]>([]);
   const [reprintSummary, setReprintSummary] = useState<ReprintSummaryRow[]>([]);
   const [labourCost, setLabourCost] = useState<LabourCostRow[]>([]);
+  const [labourCostHourly, setLabourCostHourly] = useState<LabourCostRow[]>([]);
   const [ingredientCostTrend, setIngredientCostTrend] = useState<IngredientCostTrendRow[]>([]);
 
   const isOwner = staff?.role === "owner";
@@ -100,8 +102,9 @@ export default function MasterPlPage() {
       fetchVoidByCashier(OUTLET_ID, from, to),
       fetchReprintSummary(OUTLET_ID, from, to),
       fetchLabourCost(OUTLET_ID, from, to),
+      fetchLabourCostHourly(OUTLET_ID, from, to),
       fetchIngredientCostTrend(OUTLET_ID),
-    ]).then(([pl, pp, cash, voids, reprints, labour, ingredientCost]) => {
+    ]).then(([pl, pp, cash, voids, reprints, labour, labourHourly, ingredientCost]) => {
       if (!mounted) return;
       setDailyPl(pl);
       setProductPerformance(pp);
@@ -109,6 +112,7 @@ export default function MasterPlPage() {
       setVoidByCashier(voids);
       setReprintSummary(reprints);
       setLabourCost(labour);
+      setLabourCostHourly(labourHourly);
       setIngredientCostTrend(ingredientCost);
       setLoading(false);
     });
@@ -121,7 +125,14 @@ export default function MasterPlPage() {
 
   const revenueByDate = useMemo(() => new Map(dailyPl.map((d) => [d.business_date, d.revenue_paisa])), [dailyPl]);
   const totalRevenuePaisa = useMemo(() => sumBy(dailyPl, (r) => r.revenue_paisa), [dailyPl]);
-  const totalLabourPaisa = useMemo(() => sumBy(labourCost, (r) => r.labour_cost_paisa), [labourCost]);
+  // Total labour cost = amortised salary expenses (existing) + hourly-
+  // worked cost from the time clock (Patch 2) — a staff member is
+  // either salaried or hourly-rated, never both, so this never double-
+  // counts. labourCost/labourCostHourly themselves are untouched.
+  const totalLabourPaisa = useMemo(
+    () => sumBy(labourCost, (r) => r.labour_cost_paisa) + sumBy(labourCostHourly, (r) => r.labour_cost_paisa),
+    [labourCost, labourCostHourly]
+  );
   const labourPercent = labourCostPercent(totalLabourPaisa, totalRevenuePaisa);
 
   const monthlyPl = useMemo(() => {
@@ -152,7 +163,12 @@ export default function MasterPlPage() {
 
   const flags: Flag[] = useMemo(() => {
     const netLossFlags = dailyPl
-      .map((d) => flagNetLoss(d, sumBy(labourCost.filter((l) => l.business_date === d.business_date), (r) => r.labour_cost_paisa)))
+      .map((d) => {
+        const dayLabourPaisa =
+          sumBy(labourCost.filter((l) => l.business_date === d.business_date), (r) => r.labour_cost_paisa) +
+          sumBy(labourCostHourly.filter((l) => l.business_date === d.business_date), (r) => r.labour_cost_paisa);
+        return flagNetLoss(d, dayLabourPaisa);
+      })
       .filter((f): f is Flag => f !== null);
     return [
       ...netLossFlags,
@@ -162,7 +178,7 @@ export default function MasterPlPage() {
       ...flagLowMarginItems(menuItems),
       ...flagIngredientCostIncrease(ingredientCostTrend),
     ];
-  }, [dailyPl, labourCost, cashVariance, stockVariance.rows, voidByCashier, revenueByDate, menuItems, ingredientCostTrend]);
+  }, [dailyPl, labourCost, labourCostHourly, cashVariance, stockVariance.rows, voidByCashier, revenueByDate, menuItems, ingredientCostTrend]);
 
   if (staffLoading) return <div className="min-h-screen bg-canvas" />;
 
