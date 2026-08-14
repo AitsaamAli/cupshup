@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useStaffSession } from "@/lib/auth";
 import { useBusinessDay } from "@/lib/business-day";
 import { useIngredientStock } from "@/lib/inventory";
+import { useHouseAccountBalances } from "@/lib/house-accounts";
 import { fetchTicketTimeSamples, averageTicketMinutes } from "@/lib/kds";
 import {
   fetchDailyPl,
@@ -42,6 +43,7 @@ const PORTAL_NAV = [
   { label: "Purchases", href: "/manage/purchases" },
   { label: "Expenses", href: "/manage/expenses" },
   { label: "Business day", href: "/manage/day" },
+  { label: "House accounts", href: "/manage/house-accounts" },
 ];
 
 const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
@@ -67,6 +69,7 @@ export default function DashboardPage() {
   const { staff, loading: staffLoading, lock } = useStaffSession("manage");
   const { day } = useBusinessDay(OUTLET_ID);
   const stock = useIngredientStock(OUTLET_ID);
+  const { rows: houseAccountRows } = useHouseAccountBalances(OUTLET_ID);
 
   const [from, setFrom] = useState(todayIso());
   const [to, setTo] = useState(todayIso());
@@ -153,6 +156,11 @@ export default function DashboardPage() {
   );
 
   const lowStock = stock.rows.filter((r) => r.is_low);
+  // Patch 1 (Khata/Credit) — total outstanding across every house
+  // account, read straight from house_account_balances (never re-summed
+  // here), same single-source-of-truth rule every other number on this
+  // screen already follows.
+  const houseAccountOutstandingPaisa = houseAccountRows.reduce((sum, r) => sum + r.outstanding_paisa, 0);
 
   if (staffLoading) return <div className="min-h-screen bg-canvas" />;
 
@@ -220,6 +228,11 @@ export default function DashboardPage() {
                 hint={voidedOrders > 0 ? `Value: Rs ${(voidedValuePaisa / 100).toFixed(2)}` : undefined}
               />
               <KpiTile label="Low stock items" value={lowStock.length} hint={lowStock.map((i) => i.name).join(", ") || undefined} />
+              <KpiTile
+                label="House accounts outstanding"
+                value={<Money paisa={houseAccountOutstandingPaisa} />}
+                hint={houseAccountOutstandingPaisa > 0 ? "Khata/Credit — see House accounts" : undefined}
+              />
               <KpiTile label="COGS" value={<Money paisa={cogsPaisa} />} />
             </section>
 

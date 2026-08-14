@@ -52,6 +52,7 @@ const PORTAL_NAV = [
   { label: "Purchases", href: "/manage/purchases" },
   { label: "Expenses", href: "/manage/expenses" },
   { label: "Business day", href: "/manage/day" },
+  { label: "House accounts", href: "/manage/house-accounts" },
 ];
 
 /** YYYY-MM-DD -> YYYY-MM, for the month-wise rollup table. */

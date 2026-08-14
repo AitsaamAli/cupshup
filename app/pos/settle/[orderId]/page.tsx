@@ -13,6 +13,7 @@ import {
   type PaymentMethod,
   type TaxRateInfo,
 } from "@/lib/settlement";
+import { useHouseAccountBalances } from "@/lib/house-accounts";
 import { ManagerAuthDialog } from "@/components/pos/manager-auth-dialog";
 import { PrintButton } from "@/components/print/print-button";
 import { fetchReceiptData, recordInvoicePrint } from "@/lib/receipt-data";
@@ -23,6 +24,7 @@ import { Field, Input, Select } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Money } from "@/components/ui/Money";
 
+const OUTLET_ID = process.env.NEXT_PUBLIC_SUPABASE_OUTLET_ID!;
 const APPROVER_ROLES = new Set(["owner", "manager", "supervisor"]);
 const METHOD_LABEL: Record<PaymentMethod, string> = {
   cash: "Cash",
@@ -31,6 +33,7 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
   easypaisa: "EasyPaisa",
   qr: "QR",
   foodpanda: "Foodpanda",
+  house_account: "Bill to account",
 };
 const VOID_REASONS = [
   { code: "wrong_item", label: "Wrong item punched" },
@@ -52,6 +55,8 @@ interface SplitRow {
   method: PaymentMethod;
   baseRupees: string;
   tenderedRupees: string;
+  /** Only used when method === "house_account". */
+  accountId: string;
 }
 
 /**
@@ -72,13 +77,14 @@ export default function SettlePage() {
   const { orderId } = useParams<{ orderId: string }>();
   const router = useRouter();
   const { staff } = useStaffSession("pos");
+  const { rows: houseAccounts } = useHouseAccountBalances(OUTLET_ID);
 
   const [order, setOrder] = useState<OrderRow | null>(null);
   const [taxRates, setTaxRates] = useState<Record<PaymentMethod, TaxRateInfo> | null>(null);
   const [discountRupees, setDiscountRupees] = useState("0");
   const [serviceChargeRupees, setServiceChargeRupees] = useState("0");
   const [deliveryFeeRupees, setDeliveryFeeRupees] = useState("0");
-  const [splits, setSplits] = useState<SplitRow[]>([{ method: "cash", baseRupees: "", tenderedRupees: "" }]);
+  const [splits, setSplits] = useState<SplitRow[]>([{ method: "cash", baseRupees: "", tenderedRupees: "", accountId: "" }]);
   const [needsApproval, setNeedsApproval] = useState(false);
   const [approvedBy, setApprovedBy] = useState<string | null>(null);
   const [showVoid, setShowVoid] = useState(false);
@@ -161,6 +167,11 @@ export default function SettlePage() {
       );
       return;
     }
+    const missingAccount = splits.find((s) => s.method === "house_account" && !s.accountId);
+    if (missingAccount) {
+      setError("Pick which account to bill.");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -171,6 +182,7 @@ export default function SettlePage() {
           method: s.method,
           base_paisa: rupeesToPaisa(Number(s.baseRupees) || 0),
           tendered_paisa: s.tenderedRupees ? rupeesToPaisa(Number(s.tenderedRupees)) : undefined,
+          account_id: s.method === "house_account" ? s.accountId : undefined,
         })),
         { discountPaisa, serviceChargePaisa, deliveryFeePaisa }
       );
@@ -294,7 +306,7 @@ export default function SettlePage() {
               </Button>
             )}
             <button
-              onClick={() => setSplits((s) => [...s, { method: "cash", baseRupees: "", tenderedRupees: "" }])}
+              onClick={() => setSplits((s) => [...s, { method: "cash", baseRupees: "", tenderedRupees: "", accountId: "" }])}
               className="text-portal-sm text-ink-500 hover:underline"
             >
               + Add split
@@ -319,6 +331,22 @@ export default function SettlePage() {
             {s.method === "cash" && (
               <Field label="Tendered (Rs)" htmlFor={`settle-tendered-${i}`}>
                 <NumberInput id={`settle-tendered-${i}`} value={s.tenderedRupees} onChange={(v) => updateSplit(i, { tenderedRupees: v })} />
+              </Field>
+            )}
+            {s.method === "house_account" && (
+              <Field label="Account" htmlFor={`settle-account-${i}`}>
+                <Select
+                  id={`settle-account-${i}`}
+                  value={s.accountId}
+                  onChange={(e) => updateSplit(i, { accountId: e.target.value })}
+                >
+                  <option value="">Select…</option>
+                  {houseAccounts.map((a) => (
+                    <option key={a.account_id} value={a.account_id}>
+                      {a.name} — {formatPaisa((a.credit_limit_paisa - a.outstanding_paisa) as Paisa)} available
+                    </option>
+                  ))}
+                </Select>
               </Field>
             )}
             <div className="text-portal-sm text-ink-500">

@@ -36,7 +36,17 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
   easypaisa: "EasyPaisa",
   qr: "QR",
   foodpanda: "Foodpanda",
+  // Not offered as a choice below (ENTRY_METHODS) — house_account only
+  // makes sense for money coming IN (settling an order to a customer's
+  // khata, Patch 1), never for an outgoing expense payment. Still needs
+  // a label here so this map satisfies Record<PaymentMethod, string> —
+  // covers the (in-practice-never) case of displaying an existing
+  // expense row that somehow has this value.
+  house_account: "House account",
 };
+/** What an expense can actually be PAID with — deliberately excludes
+ * house_account (see METHOD_LABEL's own comment above it). */
+const ENTRY_METHODS = Object.entries(METHOD_LABEL).filter(([m]) => m !== "house_account") as [PaymentMethod, string][];
 
 const PORTAL_NAV = [
   { label: "Dashboard", href: "/reports/dashboard" },
@@ -46,6 +56,7 @@ const PORTAL_NAV = [
   { label: "Purchases", href: "/manage/purchases" },
   { label: "Expenses", href: "/manage/expenses" },
   { label: "Business day", href: "/manage/day" },
+  { label: "House accounts", href: "/manage/house-accounts" },
 ];
 
 /**
@@ -287,7 +298,7 @@ function EntryForm({
         </Field>
         <Field label="Payment method" htmlFor="expense-method">
           <Select id="expense-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
-            {Object.entries(METHOD_LABEL).map(([m, label]) => (
+            {ENTRY_METHODS.map(([m, label]) => (
               <option key={m} value={m}>
                 {label}
               </option>
@@ -377,7 +388,7 @@ function EditDialog({
         </Field>
         <Field label="Payment method" htmlFor="edit-expense-method">
           <Select id="edit-expense-method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
-            {Object.entries(METHOD_LABEL).map(([m, label]) => (
+            {ENTRY_METHODS.map(([m, label]) => (
               <option key={m} value={m}>
                 {label}
               </option>

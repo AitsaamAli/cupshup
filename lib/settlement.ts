@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 
-export type PaymentMethod = "cash" | "card" | "jazzcash" | "easypaisa" | "qr" | "foodpanda";
+export type PaymentMethod = "cash" | "card" | "jazzcash" | "easypaisa" | "qr" | "foodpanda" | "house_account";
 
 export interface PaymentSplitInput {
   method: PaymentMethod;
@@ -11,6 +11,11 @@ export interface PaymentSplitInput {
   base_paisa: number;
   tendered_paisa?: number;
   processor_ref?: string;
+  /** Required when method === "house_account" (Patch 1: Khata/Credit) —
+   * which account this charge posts to. settle_order() rejects the
+   * whole settle before writing anything if this would exceed the
+   * account's credit limit. */
+  account_id?: string;
 }
 
 export interface SettleOrderOptions {
